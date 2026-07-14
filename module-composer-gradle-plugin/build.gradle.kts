@@ -1,3 +1,5 @@
+import org.gradle.plugin.compatibility.compatibility
+
 plugins {
     `java-gradle-plugin`
     `maven-publish`
@@ -33,6 +35,11 @@ gradlePlugin {
             displayName = "Module Composer"
             description = "Compose modules in a monorepo into runnable application bundles from CLI selections or reusable distributions."
             tags.set(listOf("monorepo", "modular", "composition", "spring-boot", "gradle-plugin"))
+            compatibility {
+                features {
+                    configurationCache = false
+                }
+            }
         }
     }
 }

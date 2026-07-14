@@ -15,20 +15,18 @@ import io.github.bud127.modulecomposer.core.ModuleSelector;
 import io.github.bud127.modulecomposer.core.RuntimeOptions;
 import io.github.bud127.modulecomposer.core.SelectionRequest;
 import io.github.bud127.modulecomposer.module.ModuleComposerModulePlugin;
-import org.gradle.StartParameter;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.GradleBuild;
+import org.gradle.api.tasks.Exec;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
@@ -295,36 +293,37 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                         }
                 );
 
-        TaskProvider<GradleBuild> runGenerated =
+        TaskProvider<Exec> runGenerated =
                 root.getTasks().register(
                         "runGeneratedHost",
-                        GradleBuild.class,
+                        Exec.class,
                         task -> {
                             task.setGroup("module composer");
                             task.dependsOn(prepare);
-                            task.setDir(
-                                    extension.getGeneratedHostDirectory()
-                                            .get()
-                                            .getAsFile()
+                            configureGeneratedGradleInvocation(
+                                    root,
+                                    extension,
+                                    task,
+                                    buildTool.generatedRun(adapter).steps(),
+                                    true
                             );
-                            task.setTasks(buildTool.generatedRun(adapter).steps());
-                            configureNestedRunParameters(root, task);
                         }
                 );
 
-        TaskProvider<GradleBuild> buildGenerated =
+        TaskProvider<Exec> buildGenerated =
                 root.getTasks().register(
                         "buildGeneratedHost",
-                        GradleBuild.class,
+                        Exec.class,
                         task -> {
                             task.setGroup("module composer");
                             task.dependsOn(prepare);
-                            task.setDir(
-                                    extension.getGeneratedHostDirectory()
-                                            .get()
-                                            .getAsFile()
+                            configureGeneratedGradleInvocation(
+                                    root,
+                                    extension,
+                                    task,
+                                    buildTool.generatedBuild(adapter).steps(),
+                                    false
                             );
-                            task.setTasks(buildTool.generatedBuild(adapter).steps());
                         }
                 );
 
@@ -396,27 +395,46 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         });
     }
 
-    private void configureNestedRunParameters(
+    private void configureGeneratedGradleInvocation(
             Project root,
-            GradleBuild task
+            ModuleComposerExtension extension,
+            Exec task,
+            List<String> tasks,
+            boolean includeRunParameters
     ) {
-        StartParameter startParameter = task.getStartParameter();
+        File hostDirectory = extension.getGeneratedHostDirectory()
+                .get()
+                .getAsFile();
 
-        startParameter.setProjectProperties(
-                new LinkedHashMap<>(
-                        root.getGradle()
-                                .getStartParameter()
-                                .getProjectProperties()
-                )
-        );
+        task.setWorkingDir(hostDirectory);
 
-        startParameter.setSystemPropertiesArgs(
-                new LinkedHashMap<>(
-                        root.getGradle()
-                                .getStartParameter()
-                                .getSystemPropertiesArgs()
-                )
-        );
+        List<String> command = new ArrayList<>();
+        command.add(gradleExecutable(root));
+        command.addAll(tasks);
+
+        if (includeRunParameters) {
+            Integer port = resolvePort(root);
+            if (port != null) {
+                command.add("-Pport=" + port);
+            }
+        }
+
+        task.commandLine(command);
+    }
+
+    private String gradleExecutable(Project root) {
+        String executable = isWindows() ? "gradlew.bat" : "gradlew";
+        File wrapper = root.file(executable);
+        if (wrapper.exists()) {
+            return wrapper.getAbsolutePath();
+        }
+        return isWindows() ? "gradle.bat" : "gradle";
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name")
+                .toLowerCase()
+                .contains("windows");
     }
 
     private static boolean selectionTaskRequested(Project root) {

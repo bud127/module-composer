@@ -1,3 +1,5 @@
+import org.gradle.plugin.compatibility.compatibility
+
 plugins {
     `java-gradle-plugin`
     id("com.gradle.plugin-publish") version "2.1.1"
@@ -23,6 +25,11 @@ gradlePlugin {
             displayName = "Module Composer Module"
             description = "Registers selectable module metadata for Module Composer in a modular monorepo."
             tags.set(listOf("monorepo", "modular", "composition", "module-registry", "gradle-plugin"))
+            compatibility {
+                features {
+                    configurationCache = false
+                }
+            }
         }
     }
 }

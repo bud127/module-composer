@@ -42,6 +42,7 @@ Docs:
 docs/02_ARCHITECTURE.md
 docs/03_PLUGIN_API.md
 docs/06_BUILD_TOOL_ADAPTER.md
+docs/07_PUBLISHING.md
 ```
 
 ## Framework Adapter Architecture
@@ -134,3 +135,29 @@ Combined output:
 ```text
 samples/springboot-demo/build/module-composer/output/combined-app.jar
 ```
+
+## Publishing
+
+Validate local publishing:
+
+```bash
+./gradlew test
+./gradlew publishToMavenLocal
+```
+
+Publish all artifacts to an internal Maven repository:
+
+```bash
+./gradlew publishAllPublicationsToModuleComposerRepository \
+  -PmoduleComposerPublishUrl=https://repo.example.com/releases
+```
+
+Publish plugin IDs to the Gradle Plugin Portal:
+
+```bash
+./gradlew :module-composer-module-plugin:publishPlugins
+./gradlew :module-composer-gradle-plugin:publishPlugins
+```
+
+See [Publishing](docs/07_PUBLISHING.md) for credentials and public dependency
+requirements.
