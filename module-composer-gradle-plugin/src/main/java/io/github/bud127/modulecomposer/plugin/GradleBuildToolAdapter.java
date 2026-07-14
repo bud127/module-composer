@@ -8,10 +8,18 @@ import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 
+/**
+ * Gradle implementation of the generic build-tool adapter contract.
+ */
 public final class GradleBuildToolAdapter implements BuildToolAdapter {
 
     private final Project root;
 
+    /**
+     * Creates an adapter for the given root project.
+     *
+     * @param root root Gradle project
+     */
     public GradleBuildToolAdapter(Project root) {
         this.root = root;
     }
@@ -71,6 +79,12 @@ public final class GradleBuildToolAdapter implements BuildToolAdapter {
         );
     }
 
+    /**
+     * Resolves the archive file path produced by an archive task.
+     *
+     * @param taskPath task path to an {@link AbstractArchiveTask}
+     * @return provider for the produced archive absolute path
+     */
     public Provider<String> archiveFilePath(String taskPath) {
         Project targetProject = projectForTaskPath(taskPath);
         String taskName = taskName(taskPath);
@@ -81,6 +95,12 @@ public final class GradleBuildToolAdapter implements BuildToolAdapter {
                 .map(file -> file.getAsFile().getAbsolutePath());
     }
 
+    /**
+     * Finds the project that owns the given Gradle task path.
+     *
+     * @param taskPath Gradle task path
+     * @return owning project
+     */
     public Project projectForTaskPath(String taskPath) {
         int index = taskPath.lastIndexOf(':');
         if (index < 0) {
@@ -95,6 +115,12 @@ public final class GradleBuildToolAdapter implements BuildToolAdapter {
         return root.project(projectPath);
     }
 
+    /**
+     * Extracts the task name from a Gradle task path.
+     *
+     * @param taskPath Gradle task path
+     * @return task name
+     */
     public String taskName(String taskPath) {
         int index = taskPath.lastIndexOf(':');
         return index < 0 ? taskPath : taskPath.substring(index + 1);

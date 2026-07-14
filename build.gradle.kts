@@ -1,7 +1,3 @@
-import org.gradle.api.artifacts.repositories.PasswordCredentials
-import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.publish.PublishingExtension
-
 plugins {
     base
 }

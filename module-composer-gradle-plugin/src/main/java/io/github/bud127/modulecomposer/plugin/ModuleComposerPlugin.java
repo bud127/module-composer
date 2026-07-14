@@ -1,19 +1,6 @@
 package io.github.bud127.modulecomposer.plugin;
 
-import io.github.bud127.modulecomposer.core.BuildInvocation;
-import io.github.bud127.modulecomposer.core.CompositionPlan;
-import io.github.bud127.modulecomposer.core.CompositionPlanner;
-import io.github.bud127.modulecomposer.core.DistributionConfig;
-import io.github.bud127.modulecomposer.core.DistributionLoader;
-import io.github.bud127.modulecomposer.core.FrameworkAdapter;
-import io.github.bud127.modulecomposer.core.FrameworkAdapterRegistry;
-import io.github.bud127.modulecomposer.core.ModuleComposerException;
-import io.github.bud127.modulecomposer.core.ModuleRegistration;
-import io.github.bud127.modulecomposer.core.ModuleRegistry;
-import io.github.bud127.modulecomposer.core.ModuleSelection;
-import io.github.bud127.modulecomposer.core.ModuleSelector;
-import io.github.bud127.modulecomposer.core.RuntimeOptions;
-import io.github.bud127.modulecomposer.core.SelectionRequest;
+import io.github.bud127.modulecomposer.core.*;
 import io.github.bud127.modulecomposer.module.ModuleComposerModulePlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
@@ -31,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 
+/**
+ * Root Gradle plugin that resolves module selections and wires bundle tasks.
+ */
 public final class ModuleComposerPlugin implements Plugin<Project> {
 
     @Override

@@ -43,6 +43,7 @@ docs/02_ARCHITECTURE.md
 docs/03_PLUGIN_API.md
 docs/06_BUILD_TOOL_ADAPTER.md
 docs/07_PUBLISHING.md
+docs/08_UML_ARCHITECTURE.puml
 ```
 
 ## Framework Adapter Architecture

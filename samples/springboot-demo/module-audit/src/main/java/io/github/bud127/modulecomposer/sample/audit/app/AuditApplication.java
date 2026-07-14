@@ -1,6 +1,5 @@
 package io.github.bud127.modulecomposer.sample.audit.app;
 
-import io.github.bud127.modulecomposer.sample.health.HealthModuleConfiguration;
 import io.github.bud127.modulecomposer.sample.audit.AuditModuleConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -10,7 +9,6 @@ import java.util.Map;
 
 @SpringBootApplication(scanBasePackages = "io.github.bud127.modulecomposer.sample.audit.app")
 @Import({
-        HealthModuleConfiguration.class,
         AuditModuleConfiguration.class
 })
 public class AuditApplication {

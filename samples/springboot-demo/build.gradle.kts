@@ -29,14 +29,4 @@ moduleComposer {
     springBootVersion.set("3.5.7")
     dependencyManagementVersion.set("1.1.7")
     javaVersion.set(21)
-
-    commonProjectPaths.set(
-        listOf(":platform-health")
-    )
-
-    commonConfigurationClasses.set(
-        listOf(
-            "io.github.bud127.modulecomposer.sample.health.HealthModuleConfiguration"
-        )
-    )
 }

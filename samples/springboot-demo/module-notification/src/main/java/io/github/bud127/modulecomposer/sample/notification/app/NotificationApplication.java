@@ -1,6 +1,5 @@
 package io.github.bud127.modulecomposer.sample.notification.app;
 
-import io.github.bud127.modulecomposer.sample.health.HealthModuleConfiguration;
 import io.github.bud127.modulecomposer.sample.notification.NotificationModuleConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -10,7 +9,6 @@ import java.util.Map;
 
 @SpringBootApplication(scanBasePackages = "io.github.bud127.modulecomposer.sample.notification.app")
 @Import({
-        HealthModuleConfiguration.class,
         NotificationModuleConfiguration.class
 })
 public class NotificationApplication {

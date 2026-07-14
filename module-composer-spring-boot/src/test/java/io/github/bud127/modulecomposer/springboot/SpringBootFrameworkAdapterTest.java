@@ -1,11 +1,6 @@
 package io.github.bud127.modulecomposer.springboot;
 
-import io.github.bud127.modulecomposer.core.CompositionPlan;
-import io.github.bud127.modulecomposer.core.ExecutionMode;
-import io.github.bud127.modulecomposer.core.GeneratedHostContext;
-import io.github.bud127.modulecomposer.core.ModuleRegistration;
-import io.github.bud127.modulecomposer.core.RuntimeOptions;
-import io.github.bud127.modulecomposer.core.SelectionMode;
+import io.github.bud127.modulecomposer.core.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -20,7 +20,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "springboot-demo"
 
-include(":platform-health")
 include(":module-payment")
 include(":module-notification")
 include(":module-audit")

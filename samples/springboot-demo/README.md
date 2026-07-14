@@ -4,7 +4,6 @@
 
 ```text
 springboot-demo/
-├── platform-health/
 ├── module-payment/
 ├── module-notification/
 ├── module-audit/

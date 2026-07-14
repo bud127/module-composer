@@ -31,6 +31,8 @@ Module Composer Core
                 +-- Maven Build Tool Adapter (future)
 ```
 
+PlantUML diagrams are available in [UML Architecture](08_UML_ARCHITECTURE.puml).
+
 ## Plugins
 
 ```text
