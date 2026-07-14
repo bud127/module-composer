@@ -1,0 +1,17 @@
+version: 1
+
+distributions:
+  payment-only:
+    modules:
+      - payment
+
+  community:
+    modules:
+      - payment
+      - notification
+
+  enterprise:
+    modules:
+      - payment
+      - notification
+      - audit
