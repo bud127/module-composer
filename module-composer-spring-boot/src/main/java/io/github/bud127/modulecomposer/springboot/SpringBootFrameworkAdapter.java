@@ -221,6 +221,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
             String distribution = context.distribution() == null
                     ? ""
                     : context.distribution();
+            String applicationName = context.applicationName();
 
             Files.writeString(
                     javaDirectory.resolve("GeneratedCombinedApplication.java"),
@@ -246,7 +247,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                                     new SpringApplication(GeneratedCombinedApplication.class);
 
                             Map<String, Object> defaults = new LinkedHashMap<>();
-                            defaults.put("spring.application.name", "combined-app");
+                            defaults.put("spring.application.name", "%s");
                             defaults.put("server.port", "8080");
                             defaults.put("composer.modules", "%s");
                             defaults.put("composer.distribution", "%s");
@@ -258,6 +259,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                     """.formatted(
                             imports,
                             importedClasses,
+                            applicationName,
                             modules,
                             distribution
                     )

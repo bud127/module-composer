@@ -66,6 +66,14 @@ public abstract class GenerateHostTask extends DefaultTask {
     public abstract Property<String> getDistribution();
 
     /**
+     * Application name used by the generated host and final bundle.
+     *
+     * @return application name
+     */
+    @Input
+    public abstract Property<String> getApplicationName();
+
+    /**
      * Java version used by the generated host build.
      *
      * @return Java language version
@@ -135,6 +143,7 @@ public abstract class GenerateHostTask extends DefaultTask {
                         getConfigurationClasses().get(),
                         getModuleNames().get(),
                         getDistribution().getOrElse(""),
+                        getApplicationName().get(),
                         getJavaVersion().get(),
                         getFrameworkOptions().get()
                 )

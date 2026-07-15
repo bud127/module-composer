@@ -18,16 +18,23 @@ distributions:
       - payment
 
   community:
+    applicationName: community-service
     modules:
       - payment
       - notification
 
   enterprise:
+    applicationName: enterprise-service
     modules:
       - payment
       - notification
       - audit
 ```
+
+`applicationName` is optional. When present, it sets the generated Spring
+application name and, unless `moduleComposer.outputJar` uses a custom file name,
+the default bundle output becomes `<applicationName>.jar`. A CLI value from
+`-PapplicationName=...` overrides the YAML value.
 
 ## Usage
 

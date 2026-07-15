@@ -40,6 +40,7 @@ class CoreArchitectureTest {
         ).resolve(new SelectionRequest(
                 List.of("payment"),
                 null,
+                null,
                 List.of(),
                 List.of(),
                 RuntimeOptions.none()
@@ -73,12 +74,75 @@ class CoreArchitectureTest {
         ).resolve(new SelectionRequest(
                 List.of(),
                 "community",
+                null,
                 List.of("audit"),
                 List.of("notification"),
                 RuntimeOptions.none()
         ));
 
         assertEquals(List.of("payment", "audit"), selection.moduleNames());
+    }
+
+    @Test
+    void selectorUsesApplicationNameFromDistribution() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                distributions:
+                  community:
+                    applicationName: community-service
+                    modules:
+                      - payment
+                """);
+
+        ModuleRegistry registry = new ModuleRegistry();
+        registry.register(module("payment", ":module-payment"));
+
+        ModuleSelection selection = new ModuleSelector(
+                registry,
+                new DistributionLoader(yaml),
+                path -> true
+        ).resolve(new SelectionRequest(
+                List.of(),
+                "community",
+                null,
+                List.of(),
+                List.of(),
+                RuntimeOptions.none()
+        ));
+
+        assertEquals("community-service", selection.applicationName());
+    }
+
+    @Test
+    void cliApplicationNameOverridesDistributionApplicationName() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                distributions:
+                  community:
+                    applicationName: community-service
+                    modules:
+                      - payment
+                """);
+
+        ModuleRegistry registry = new ModuleRegistry();
+        registry.register(module("payment", ":module-payment"));
+
+        ModuleSelection selection = new ModuleSelector(
+                registry,
+                new DistributionLoader(yaml),
+                path -> true
+        ).resolve(new SelectionRequest(
+                List.of(),
+                "community",
+                "cli-service",
+                List.of(),
+                List.of(),
+                RuntimeOptions.none()
+        ));
+
+        assertEquals("cli-service", selection.applicationName());
     }
 
     @Test
@@ -89,6 +153,7 @@ class CoreArchitectureTest {
                         module("notification", ":module-notification")
                 ),
                 null,
+                "combined-app",
                 RuntimeOptions.none(),
                 SelectionMode.CLI
         );
@@ -98,6 +163,7 @@ class CoreArchitectureTest {
 
         assertEquals(ExecutionMode.GENERATED_HOST, plan.executionMode());
         assertEquals("spring-boot", plan.framework());
+        assertEquals("combined-app", plan.applicationName());
     }
 
     @Test

@@ -2,7 +2,7 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-COPY build/module-composer/output/combined-app.jar /app/app.jar
+COPY build/module-composer/output/enterprise-service.jar /app/app.jar
 
 EXPOSE 8080
 

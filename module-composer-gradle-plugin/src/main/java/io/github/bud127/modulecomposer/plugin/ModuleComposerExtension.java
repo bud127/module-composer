@@ -89,7 +89,7 @@ public abstract class ModuleComposerExtension {
         getDistributionFile().convention("distributions.yml");
         getFramework().convention("spring-boot");
         getGeneratedHostDirectory().convention(
-                layout.getBuildDirectory().dir("module-composer/combined-app")
+                layout.getBuildDirectory().dir("module-composer/generated/combined-app")
         );
         getOutputJar().convention(
                 layout.getBuildDirectory().file("module-composer/output/combined-app.jar")

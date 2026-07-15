@@ -14,12 +14,6 @@ allprojects {
 moduleComposer {
     distributionFile.set("distributions.yml")
 
-    generatedHostDirectory.set(
-        layout.buildDirectory.dir(
-            "module-composer/combined-app"
-        )
-    )
-
     outputJar.set(
         layout.buildDirectory.file(
             "module-composer/output/combined-app.jar"

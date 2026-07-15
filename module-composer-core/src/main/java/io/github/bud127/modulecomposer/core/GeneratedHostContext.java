@@ -10,6 +10,7 @@ public record GeneratedHostContext(
         List<String> configurationClasses,
         List<String> moduleNames,
         String distribution,
+        String applicationName,
         int javaVersion,
         Map<String, String> frameworkOptions
 ) {

@@ -6,11 +6,13 @@ distributions:
       - payment
 
   community:
+    applicationName: community-service
     modules:
       - payment
       - notification
 
   enterprise:
+    applicationName: enterprise-service
     modules:
       - payment
       - notification

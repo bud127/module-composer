@@ -5,6 +5,7 @@ import java.util.List;
 public record ModuleSelection(
         List<ModuleRegistration> modules,
         String distribution,
+        String applicationName,
         RuntimeOptions runtimeOptions,
         SelectionMode mode
 ) {

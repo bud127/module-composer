@@ -224,8 +224,68 @@ class ModuleComposerFunctionalTest {
         assertTrue(result.getOutput().contains("Execution      : GENERATED_HOST"));
         assertTrue(result.getOutput().contains("Adapter        : SpringBootFrameworkAdapter"));
         assertTrue(result.getOutput().contains("Port           : 9090"));
-        assertTrue(result.getOutput().contains("build/module-composer/combined-app"));
+        assertTrue(result.getOutput().contains("build/module-composer/generated/combined-app"));
         assertTrue(result.getOutput().contains("build/module-composer/output/combined-app.jar"));
+    }
+
+    @Test
+    void distributionApplicationNameSetsGeneratedBundleName() throws IOException {
+        writeProject(List.of("payment", "notification"), false);
+        writeDistribution("""
+                version: 1
+                distributions:
+                  community:
+                    applicationName: community-service
+                    modules:
+                      - payment
+                      - notification
+                """);
+
+        BuildResult result = run(
+                "explain",
+                "-Pdistribution=community"
+        );
+
+        assertTrue(result.getOutput().contains("Application    : community-service"));
+        assertTrue(result.getOutput().contains("build/module-composer/generated/community-service"));
+        assertTrue(result.getOutput().contains("build/module-composer/output/community-service.jar"));
+    }
+
+    @Test
+    void cliApplicationNameOverridesDistributionApplicationName() throws IOException {
+        writeProject(List.of("payment", "notification"), false);
+        writeDistribution("""
+                version: 1
+                distributions:
+                  community:
+                    applicationName: community-service
+                    modules:
+                      - payment
+                      - notification
+                """);
+
+        BuildResult result = run(
+                "explain",
+                "-Pdistribution=community",
+                "-PapplicationName=cli-service"
+        );
+
+        assertTrue(result.getOutput().contains("Application    : cli-service"));
+        assertTrue(result.getOutput().contains("build/module-composer/generated/cli-service"));
+        assertTrue(result.getOutput().contains("build/module-composer/output/cli-service.jar"));
+    }
+
+    @Test
+    void invalidApplicationNameFails() throws IOException {
+        writeProject(List.of("payment", "notification"), false);
+
+        BuildResult result = fail(
+                "explain",
+                "-Pmodules=payment,notification",
+                "-PapplicationName=bad/name"
+        );
+
+        assertTrue(result.getOutput().contains("Invalid application name 'bad/name'"));
     }
 
     private BuildResult run(String... arguments) {
@@ -297,6 +357,7 @@ class ModuleComposerFunctionalTest {
                         modules:
                           - payment
                       community:
+                        applicationName: community-service
                         modules:
                           - payment
                           - notification

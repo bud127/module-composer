@@ -42,7 +42,7 @@ public final class DistributionLoader {
                 throw new ModuleComposerException("Missing 'distributions' section in " + file);
             }
 
-            Map<String, List<String>> distributions = new LinkedHashMap<>();
+            Map<String, DistributionPreset> distributions = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : distributionMap.entrySet()) {
                 String name = String.valueOf(entry.getKey());
 
@@ -53,9 +53,13 @@ public final class DistributionLoader {
                     );
                 }
 
+                String applicationName = optionalString(metadata.get("applicationName"));
                 distributions.put(
                         name,
-                        list.stream().map(String::valueOf).toList()
+                        new DistributionPreset(
+                                list.stream().map(String::valueOf).toList(),
+                                applicationName
+                        )
                 );
             }
 
@@ -63,5 +67,14 @@ public final class DistributionLoader {
         } catch (IOException exception) {
             throw new ModuleComposerException("Unable to read " + file, exception);
         }
+    }
+
+    private static String optionalString(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        String text = String.valueOf(value).trim();
+        return text.isBlank() ? null : text;
     }
 }

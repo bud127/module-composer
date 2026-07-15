@@ -83,6 +83,9 @@ The port must be an integer between `1` and `65535`.
 build/module-composer/output/combined-app.jar
 ```
 
+`-PapplicationName` or distribution YAML `applicationName` can override the
+default generated bundle file name to `<applicationName>.jar`.
+
 ## MVP Commands
 
 - `bundleRun`

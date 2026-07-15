@@ -191,9 +191,17 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 DistributionConfig config = loader.loadRequired();
 
                 project.getLogger().lifecycle("Available distributions:");
-                config.distributions().keySet().forEach(
-                        name -> project.getLogger().lifecycle("  + {}", name)
-                );
+                config.distributions().forEach((name, preset) -> {
+                    if (preset.applicationName() == null) {
+                        project.getLogger().lifecycle("  + {}", name);
+                    } else {
+                        project.getLogger().lifecycle(
+                                "  + {} (application: {})",
+                                name,
+                                preset.applicationName()
+                        );
+                    }
+                });
             });
         });
     }
@@ -251,6 +259,8 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                         .toList()
         );
 
+        File hostDirectory = generatedHostDirectory(extension, plan);
+
         TaskProvider<GenerateHostTask> prepare =
                 root.getTasks().register(
                         "prepareGeneratedHost",
@@ -260,9 +270,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                             task.dependsOn(jarTasks);
                             task.setAdapter(adapter);
                             task.setPlan(plan);
-                            task.getHostDirectory().set(
-                                    extension.getGeneratedHostDirectory()
-                            );
+                            task.getHostDirectory().set(hostDirectory);
                             jarPaths.forEach(task.getDependencyJarPaths()::add);
                             task.getConfigurationClasses().set(configurationClasses);
                             task.getModuleNames().set(plan.moduleNames());
@@ -271,6 +279,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                                             ? ""
                                             : plan.distribution()
                             );
+                            task.getApplicationName().set(plan.applicationName());
                             task.getJavaVersion().set(extension.getJavaVersion());
                             task.getFrameworkOptions().put(
                                     "springBootVersion",
@@ -292,7 +301,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                             task.dependsOn(prepare);
                             configureGeneratedGradleInvocation(
                                     root,
-                                    extension,
+                                    hostDirectory,
                                     task,
                                     buildTool.generatedRun(adapter).steps(),
                                     true
@@ -309,7 +318,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                             task.dependsOn(prepare);
                             configureGeneratedGradleInvocation(
                                     root,
-                                    extension,
+                                    hostDirectory,
                                     task,
                                     buildTool.generatedBuild(adapter).steps(),
                                     false
@@ -324,18 +333,12 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                     task.dependsOn(buildGenerated);
 
                     task.doLast(ignored -> {
-                        File source = extension
-                                .getGeneratedHostDirectory()
-                                .get()
-                                .getAsFile()
+                        File source = hostDirectory
                                 .toPath()
                                 .resolve(adapter.generatedArtifact())
                                 .toFile();
 
-                        File target = extension
-                                .getOutputJar()
-                                .get()
-                                .getAsFile();
+                        File target = outputJar(extension, plan);
 
                         if (!source.exists()) {
                             throw new GradleException(
@@ -387,15 +390,11 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
 
     private void configureGeneratedGradleInvocation(
             Project root,
-            ModuleComposerExtension extension,
+            File hostDirectory,
             Exec task,
             List<String> tasks,
             boolean includeRunParameters
     ) {
-        File hostDirectory = extension.getGeneratedHostDirectory()
-                .get()
-                .getAsFile();
-
         task.setWorkingDir(hostDirectory);
 
         List<String> command = new ArrayList<>();
@@ -449,6 +448,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         return new SelectionRequest(
                 parseList(root, "modules"),
                 stringProperty(root, "distribution"),
+                stringProperty(root, "applicationName"),
                 parseList(root, "includeModules"),
                 parseList(root, "excludeModules"),
                 runtimeOptions(root)
@@ -536,6 +536,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         if (plan.distribution() != null) {
             project.getLogger().lifecycle("Distribution   : {}", plan.distribution());
         }
+        project.getLogger().lifecycle("Application    : {}", plan.applicationName());
         project.getLogger().lifecycle(
                 "Port           : {}",
                 plan.runtimeOptions().port() == null
@@ -554,24 +555,62 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             project.getLogger().lifecycle("Build task:");
             project.getLogger().lifecycle("  {}", buildTool.standaloneBuild(adapter, module).displayName());
         } else {
+            File host = generatedHostDirectory(extension, plan);
+            File output = outputJar(extension, plan);
             project.getLogger().lifecycle("Generated Host:");
             project.getLogger().lifecycle(
                     "  {}",
-                    extension.getGeneratedHostDirectory()
-                            .get()
-                            .getAsFile()
-                            .getPath()
+                    host.getPath()
             );
             project.getLogger().lifecycle("Build output:");
             project.getLogger().lifecycle(
                     "  {}",
-                    extension.getOutputJar()
-                            .get()
-                            .getAsFile()
-                            .getPath()
+                    output.getPath()
             );
         }
 
         project.getLogger().lifecycle("");
+    }
+
+    private static File outputJar(
+            ModuleComposerExtension extension,
+            CompositionPlan plan
+    ) {
+        File configured = extension.getOutputJar().get().getAsFile();
+        if (!configured.getName().equals("combined-app.jar")) {
+            return configured;
+        }
+        return configured.toPath()
+                .resolveSibling(plan.applicationName() + ".jar")
+                .toFile();
+    }
+
+    private static File generatedHostDirectory(
+            ModuleComposerExtension extension,
+            CompositionPlan plan
+    ) {
+        File configured = extension.getGeneratedHostDirectory()
+                .get()
+                .getAsFile();
+        Path configuredPath = configured.toPath();
+        Path parent = configuredPath.getParent();
+
+        if (!configured.getName().equals("combined-app") || parent == null) {
+            return configured;
+        }
+
+        if (parent.getFileName() != null
+                && parent.getFileName().toString().equals("generated")) {
+            return parent.resolve(plan.applicationName()).toFile();
+        }
+
+        if (parent.getFileName() != null
+                && parent.getFileName().toString().equals("module-composer")) {
+            return parent.resolve("generated")
+                    .resolve(plan.applicationName())
+                    .toFile();
+        }
+
+        return configured;
     }
 }

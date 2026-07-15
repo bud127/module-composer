@@ -34,10 +34,15 @@ Defaults:
 
 ```text
 framework              = spring-boot
-generatedHostDirectory = build/module-composer/combined-app
+generatedHostDirectory = build/module-composer/generated/combined-app
 outputJar              = build/module-composer/output/combined-app.jar
 distributionFile       = distributions.yml
 ```
+
+If `-PapplicationName` or a distribution YAML `applicationName` is provided and
+the default generated host/output locations are used, the generated host and
+bundle are written as `build/module-composer/generated/<applicationName>/` and
+`build/module-composer/output/<applicationName>.jar`.
 
 The root plugin discovers framework adapters through `ServiceLoader`. The
 current distribution includes `SpringBootFrameworkAdapter`.
@@ -113,6 +118,7 @@ Without YAML:
 ./gradlew bundleRun -Pmodules=payment -Pport=9090
 ./gradlew bundleRun -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification
+./gradlew bundleBuild -Pmodules=payment,notification -PapplicationName=custom-service
 ```
 
 With YAML:
@@ -128,6 +134,7 @@ Overrides:
 ```bash
 ./gradlew bundleBuild \
   -Pdistribution=enterprise \
+  -PapplicationName=custom-enterprise \
   -PincludeModules=fraud \
   -PexcludeModules=audit
 ```

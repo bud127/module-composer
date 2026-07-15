@@ -47,7 +47,7 @@ Generated host runs on port `8080`.
 Output:
 
 ```text
-build/module-composer/output/combined-app.jar
+build/module-composer/output/enterprise-service.jar
 ```
 
 ## Docker

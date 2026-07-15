@@ -8,7 +8,8 @@ public record CompositionPlan(
         SelectionMode selectionMode,
         List<ModuleRegistration> modules,
         RuntimeOptions runtimeOptions,
-        String distribution
+        String distribution,
+        String applicationName
 ) {
     public boolean isStandalone() {
         return executionMode == ExecutionMode.STANDALONE;

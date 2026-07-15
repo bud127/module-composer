@@ -27,7 +27,8 @@ class SpringBootFrameworkAdapterTest {
                 SelectionMode.CLI,
                 List.of(module("payment")),
                 RuntimeOptions.none(),
-                null
+                null,
+                "custom-service"
         );
 
         adapter.generateHost(
@@ -38,6 +39,7 @@ class SpringBootFrameworkAdapterTest {
                         List.of("example.payment.PaymentConfiguration"),
                         List.of("payment"),
                         "",
+                        "custom-service",
                         21,
                         Map.of()
                 )
@@ -52,6 +54,7 @@ class SpringBootFrameworkAdapterTest {
 
         assertTrue(application.contains("@SpringBootApplication"));
         assertTrue(application.contains("PaymentConfiguration.class"));
+        assertTrue(application.contains("spring.application.name\", \"custom-service"));
         assertTrue(build.contains("org.springframework.boot"));
         assertEquals("bootRun", adapter.generatedRunTask());
         assertEquals("bootJar", adapter.generatedBuildTask());

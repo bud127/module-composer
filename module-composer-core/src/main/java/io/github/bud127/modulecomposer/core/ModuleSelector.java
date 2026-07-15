@@ -7,6 +7,8 @@ import java.util.Set;
 
 public final class ModuleSelector {
 
+    public static final String DEFAULT_APPLICATION_NAME = "combined-app";
+
     private final ModuleRegistry registry;
     private final DistributionLoader distributionLoader;
     private final ProjectValidator projectValidator;
@@ -30,6 +32,11 @@ public final class ModuleSelector {
         String distribution = request.distribution() == null
                 ? null
                 : request.distribution().trim();
+        String requestedApplicationName = normalizeApplicationName(
+                request.applicationName(),
+                "-PapplicationName"
+        );
+        String applicationName = requestedApplicationName;
 
         if (!cliModules.isEmpty()
                 && distribution != null
@@ -47,10 +54,10 @@ public final class ModuleSelector {
             mode = SelectionMode.CLI;
         } else if (distribution != null && !distribution.isBlank()) {
             DistributionConfig config = distributionLoader.loadRequired();
-            List<String> distributionModules =
+            DistributionPreset preset =
                     config.distributions().get(distribution);
 
-            if (distributionModules == null) {
+            if (preset == null) {
                 throw new ModuleComposerException(
                         "Unknown distribution '" + distribution +
                                 "'. Available distributions: " +
@@ -58,7 +65,13 @@ public final class ModuleSelector {
                 );
             }
 
-            selected.addAll(normalizeAll(distributionModules));
+            selected.addAll(normalizeAll(preset.modules()));
+            if (applicationName == null) {
+                applicationName = normalizeApplicationName(
+                        preset.applicationName(),
+                        "distribution '" + distribution + "' applicationName"
+                );
+            }
             mode = SelectionMode.DISTRIBUTION;
         } else {
             throw new ModuleComposerException("""
@@ -103,6 +116,9 @@ public final class ModuleSelector {
         return new ModuleSelection(
                 List.copyOf(modules),
                 distribution,
+                applicationName == null
+                        ? DEFAULT_APPLICATION_NAME
+                        : applicationName,
                 request.runtimeOptions(),
                 mode
         );
@@ -123,6 +139,29 @@ public final class ModuleSelector {
 
     private String normalize(String name) {
         return name.trim().replaceFirst("^module-", "");
+    }
+
+    private static String normalizeApplicationName(
+            String value,
+            String source
+    ) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+
+        if (!normalized.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+            throw new ModuleComposerException(
+                    "Invalid application name '" + value + "' from " + source +
+                            ". Use letters, numbers, dots, underscores, and dashes; start with a letter or number."
+            );
+        }
+
+        return normalized;
     }
 
     public interface ProjectValidator {

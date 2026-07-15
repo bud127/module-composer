@@ -41,6 +41,7 @@ Docs:
 ```text
 docs/02_ARCHITECTURE.md
 docs/03_PLUGIN_API.md
+docs/09_USAGE.md
 docs/06_BUILD_TOOL_ADAPTER.md
 docs/07_PUBLISHING.md
 docs/08_UML_ARCHITECTURE.puml
@@ -114,6 +115,7 @@ Without YAML:
 ./gradlew bundleRun -Pmodules=payment -Pport=9090
 ./gradlew bundleRun -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification
+./gradlew bundleBuild -Pmodules=payment,notification -PapplicationName=custom-service
 ```
 
 With YAML presets:
@@ -131,10 +133,19 @@ Docker:
 docker compose up --build
 ```
 
-Combined output:
+Combined output without an application name:
 
 ```text
 samples/springboot-demo/build/module-composer/output/combined-app.jar
+```
+
+When `-PapplicationName` or a distribution `applicationName` is provided, the
+default bundle output name becomes `<applicationName>.jar`.
+
+The sample `enterprise` distribution uses:
+
+```text
+samples/springboot-demo/build/module-composer/output/enterprise-service.jar
 ```
 
 ## Publishing

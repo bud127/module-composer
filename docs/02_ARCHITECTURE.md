@@ -146,13 +146,17 @@ extension path.
 ## Generated Host
 
 ```text
-sample/build/module-composer/combined-app/
+sample/build/module-composer/generated/combined-app/
 ├── settings.gradle.kts
 ├── build.gradle.kts
 ├── src/main/java/com/bysa/generated/
 │   └── GeneratedCombinedApplication.java
 └── src/main/resources/application.yml
 ```
+
+When an application name is provided, the default generated host directory is
+unique per bundle, for example
+`sample/build/module-composer/generated/enterprise-service/`.
 
 The Spring Boot generated host does not scan standalone application classes
 from selected modules. It imports only common and selected module configuration
