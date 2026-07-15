@@ -192,12 +192,27 @@ public final class DistributionLoader {
 
         String image = optionalString(metadata.get("image"));
         String baseImage = optionalString(metadata.get("baseImage"));
-        Integer port = optionalInteger(metadata.get("port"), "container.port");
-        if (image == null && baseImage == null && port == null) {
+        Integer hostPort = optionalInteger(
+                metadata.get("hostPort"),
+                "container.hostPort"
+        );
+        Integer containerPort = optionalInteger(
+                metadata.get("containerPort"),
+                "container.containerPort"
+        );
+        if (image == null
+                && baseImage == null
+                && hostPort == null
+                && containerPort == null) {
             return null;
         }
 
-        return new DistributionContainer(image, baseImage, port);
+        return new DistributionContainer(
+                image,
+                baseImage,
+                hostPort,
+                containerPort
+        );
     }
 
     private static Integer optionalInteger(Object value, String field) {

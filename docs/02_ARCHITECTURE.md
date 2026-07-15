@@ -181,8 +181,12 @@ With the default application name, this becomes
 
 When a distribution provides `artifact.fileName`, generated host mode copies to
 that file name instead. When a distribution provides `container` metadata,
-`bundleBuild` writes `Dockerfile` and `docker-compose.yml` next to the final JAR.
+`bundleBuild` writes `Dockerfile` and `docker-compose.yml` under
+`build/module-composer/output/containers/<applicationName>` while the default
+output directory is used.
 Without `container` metadata, generated container files are not kept in the
 output directory.
 The generated Dockerfile uses `container.baseImage` or defaults to
 `eclipse-temurin:21-jre`.
+It exposes `container.containerPort`, while generated docker compose publishes
+`container.hostPort:container.containerPort`.

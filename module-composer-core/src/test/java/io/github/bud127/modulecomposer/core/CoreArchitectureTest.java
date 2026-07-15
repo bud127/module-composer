@@ -165,7 +165,8 @@ class CoreArchitectureTest {
                 container:
                   image: ghcr.io/bud127/document-platform
                   baseImage: amazoncorretto:21-alpine
-                  port: 8080
+                  hostPort: 9090
+                  containerPort: 8080
                 """);
 
         ModuleRegistry registry = new ModuleRegistry();
@@ -197,7 +198,8 @@ class CoreArchitectureTest {
                 selection.container().image()
         );
         assertEquals("amazoncorretto:21-alpine", selection.container().baseImage());
-        assertEquals(8080, selection.container().port());
+        assertEquals(9090, selection.container().hostPort());
+        assertEquals(8080, selection.container().containerPort());
     }
 
     @Test

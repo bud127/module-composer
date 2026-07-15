@@ -315,7 +315,8 @@ class ModuleComposerFunctionalTest {
                 container:
                   image: ghcr.io/bud127/document-platform
                   baseImage: amazoncorretto:21-alpine
-                  port: 8080
+                  hostPort: 9090
+                  containerPort: 8080
                 """);
 
         BuildResult result = run(
@@ -325,9 +326,54 @@ class ModuleComposerFunctionalTest {
 
         assertTrue(result.getOutput().contains("Application    : document-platform"));
         assertTrue(result.getOutput().contains("Artifact       : application.jar"));
-        assertTrue(result.getOutput().contains("Container      : ghcr.io/bud127/document-platform:8080"));
+        assertTrue(result.getOutput().contains("Container      : ghcr.io/bud127/document-platform:9090->8080"));
         assertTrue(result.getOutput().contains("build/module-composer/generated/document-platform"));
         assertTrue(result.getOutput().contains("build/module-composer/output/application.jar"));
+    }
+
+    @Test
+    void bundleBuildWritesContainerFilesUnderApplicationSpecificDirectory()
+            throws IOException {
+        writeProject(List.of("document", "email"), false);
+        writeExecutableGradleWrapper();
+        write("distributions/document-platform.yaml", """
+                name: document-platform
+                version: 0.1.0
+
+                modules:
+                  - document
+                  - email
+
+                artifact:
+                  fileName: application.jar
+
+                container:
+                  image: ghcr.io/bud127/document-platform
+                  baseImage: amazoncorretto:21-alpine
+                  hostPort: 9090
+                  containerPort: 8080
+                """);
+
+        run("bundleBuild", "-Pdistribution=document-platform");
+
+        Path containerDirectory = projectDir.resolve(
+                "build/module-composer/output/containers/document-platform"
+        );
+        String dockerfile = Files.readString(
+                containerDirectory.resolve("Dockerfile")
+        );
+        String compose = Files.readString(
+                containerDirectory.resolve("docker-compose.yml")
+        );
+
+        assertTrue(dockerfile.contains("FROM amazoncorretto:21-alpine"));
+        assertTrue(dockerfile.contains("ARG JAR_FILE=application.jar"));
+        assertTrue(dockerfile.contains("EXPOSE 8080"));
+        assertTrue(compose.contains("context: ../.."));
+        assertTrue(compose.contains("dockerfile: containers/document-platform/Dockerfile"));
+        assertTrue(compose.contains("JAR_FILE: application.jar"));
+        assertTrue(compose.contains("image: ghcr.io/bud127/document-platform"));
+        assertTrue(compose.contains("\"9090:8080\""));
     }
 
     @Test
@@ -542,6 +588,17 @@ class ModuleComposerFunctionalTest {
         Path file = projectDir.resolve(relativePath);
         Files.createDirectories(file.getParent());
         Files.writeString(file, content);
+    }
+
+    private void writeExecutableGradleWrapper() throws IOException {
+        Path file = projectDir.resolve("gradlew");
+        Files.writeString(file, """
+                #!/usr/bin/env sh
+                set -eu
+                mkdir -p build/libs
+                printf 'dummy jar' > build/libs/combined-app.jar
+                """);
+        assertTrue(file.toFile().setExecutable(true));
     }
 
     private static String capitalize(String value) {

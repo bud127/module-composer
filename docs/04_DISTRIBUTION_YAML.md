@@ -33,7 +33,7 @@ distributions:
     modules:
       - payment
       - notification
-	      - audit
+      - audit
 ```
 
 ## Single Distribution Format
@@ -53,7 +53,8 @@ artifact:
 container:
   image: ghcr.io/bud127/document-platform
   baseImage: eclipse-temurin:21-jre
-  port: 8080
+  hostPort: 8080
+  containerPort: 8080
 ```
 
 This can be stored at:
@@ -85,18 +86,21 @@ JAR to:
 build/module-composer/output/<artifact.fileName>
 ```
 
-`container.image`, `container.baseImage`, and `container.port` are optional
-container metadata. `image` and `port` are reported by `explain` and
-`listDistributions`. For multi-module `bundleBuild`, any container metadata also
-generates container files next to the final JAR:
+`container.image`, `container.baseImage`, `container.hostPort`, and
+`container.containerPort` are optional container metadata. `hostPort` is the
+host port published by docker compose. `containerPort` is the container port
+used by docker compose and Dockerfile `EXPOSE`. Container metadata is reported
+by `explain` and `listDistributions`. For multi-module `bundleBuild`, any
+container metadata also generates container files under an
+application-specific output directory:
 
 ```text
-build/module-composer/output/Dockerfile
-build/module-composer/output/docker-compose.yml
+build/module-composer/output/containers/<applicationName>/Dockerfile
+build/module-composer/output/containers/<applicationName>/docker-compose.yml
 ```
 
 The generated compose file builds an image from the generated JAR and maps
-`container.port` to the same host port.
+`container.hostPort:container.containerPort`.
 
 The generated Dockerfile uses `container.baseImage` as its `FROM` image. If
 `baseImage` is not provided, it defaults to `eclipse-temurin:21-jre`.

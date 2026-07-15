@@ -211,14 +211,15 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                         );
                     }
                     if (preset.container() != null) {
+                        int hostPort = containerHostPort(preset.container());
+                        int containerPort = containerContainerPort(preset.container());
                         project.getLogger().lifecycle(
-                                "      container: {}:{}",
+                                "      container: {}:{}->{}",
                                 preset.container().image() == null
                                         ? "(no image)"
                                         : preset.container().image(),
-                                preset.container().port() == null
-                                        ? "default"
-                                        : preset.container().port()
+                                hostPort,
+                                containerPort
                         );
                     }
                 });
@@ -518,23 +519,25 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
     }
 
     private void writeContainerFiles(CompositionPlan plan, File outputJar) {
-        File directory = outputJar.getParentFile();
+        File directory = containerOutputDirectory(plan, outputJar);
         if (plan.container() == null) {
             deleteContainerFiles(directory);
             return;
         }
 
-        Integer port = plan.container().port() == null
-                ? 8080
-                : plan.container().port();
+        int hostPort = containerHostPort(plan.container());
+        int containerPort = containerContainerPort(plan.container());
         String image = plan.container().image() == null
                 ? plan.applicationName() + ":local"
                 : plan.container().image();
         String baseImage = plan.container().baseImage() == null
                 ? "eclipse-temurin:21-jre"
                 : plan.container().baseImage();
+        String serviceName = containerServiceName(plan.applicationName());
+        String jarReference = outputJar.getName();
 
         try {
+            Files.createDirectories(directory.toPath());
             Files.writeString(
                     directory.toPath().resolve("Dockerfile"),
                     """
@@ -548,29 +551,30 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                     EXPOSE %d
 
                     ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-                    """.formatted(baseImage, outputJar.getName(), port)
+                    """.formatted(baseImage, jarReference, containerPort)
             );
 
             Files.writeString(
                     directory.toPath().resolve("docker-compose.yml"),
-                    """
-                    services:
-                      %s:
-                        build:
-                          context: .
-                          dockerfile: Dockerfile
-                          args:
-                            JAR_FILE: %s
-                        image: %s
-                        ports:
-                          - "%d:%d"
-                        restart: unless-stopped
-                    """.formatted(
-                            containerServiceName(plan.applicationName()),
-                            outputJar.getName(),
+                    (
+                            "services:\n" +
+                                    "  %s:\n" +
+                                    "    build:\n" +
+                                    "      context: ../..\n" +
+                                    "      dockerfile: containers/%s/Dockerfile\n" +
+                                    "      args:\n" +
+                                    "        JAR_FILE: %s\n" +
+                                    "    image: %s\n" +
+                                    "    ports:\n" +
+                                    "      - \"%d:%d\"\n" +
+                                    "    restart: unless-stopped\n"
+                    ).formatted(
+                            serviceName,
+                            serviceName,
+                            jarReference,
                             image,
-                            port,
-                            port
+                            hostPort,
+                            containerPort
                     )
             );
         } catch (IOException exception) {
@@ -586,6 +590,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         try {
             Files.deleteIfExists(directory.toPath().resolve("Dockerfile"));
             Files.deleteIfExists(directory.toPath().resolve("docker-compose.yml"));
+            Files.deleteIfExists(directory.toPath());
         } catch (IOException exception) {
             throw new GradleException(
                     "Unable to remove stale container files from " +
@@ -593,6 +598,17 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                     exception
             );
         }
+    }
+
+    private static File containerOutputDirectory(
+            CompositionPlan plan,
+            File outputJar
+    ) {
+        return outputJar.getParentFile()
+                .toPath()
+                .resolve("containers")
+                .resolve(containerServiceName(plan.applicationName()))
+                .toFile();
     }
 
     private static RuntimeOptions runtimeOptions(Project root) {
@@ -685,14 +701,15 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             );
         }
         if (plan.container() != null) {
+            int hostPort = containerHostPort(plan.container());
+            int containerPort = containerContainerPort(plan.container());
             project.getLogger().lifecycle(
-                    "Container      : {}:{}",
+                    "Container      : {}:{}->{}",
                     plan.container().image() == null
                             ? "(no image)"
                             : plan.container().image(),
-                    plan.container().port() == null
-                            ? "default"
-                            : plan.container().port()
+                    hostPort,
+                    containerPort
             );
         }
         project.getLogger().lifecycle(
@@ -784,5 +801,25 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 .replaceAll("^-+", "")
                 .replaceAll("-+$", "");
         return normalized.isBlank() ? "app" : normalized;
+    }
+
+    private static int containerHostPort(DistributionContainer container) {
+        if (container.hostPort() != null) {
+            return container.hostPort();
+        }
+        if (container.containerPort() != null) {
+            return container.containerPort();
+        }
+        return 8080;
+    }
+
+    private static int containerContainerPort(DistributionContainer container) {
+        if (container.containerPort() != null) {
+            return container.containerPort();
+        }
+        if (container.hostPort() != null) {
+            return container.hostPort();
+        }
+        return 8080;
     }
 }

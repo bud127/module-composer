@@ -57,11 +57,15 @@ has priority over a distribution YAML `applicationName`.
 If a distribution provides `artifact.fileName`, generated-host `bundleBuild`
 uses that file name while the default `outputJar` is still configured. If it
 provides `container` metadata, generated-host `bundleBuild` writes `Dockerfile`
-and `docker-compose.yml` next to the final JAR.
+and `docker-compose.yml` under
+`build/module-composer/output/containers/<applicationName>` while the default
+output directory is used.
 If `container` metadata is absent, generated-host `bundleBuild` removes stale
 generated container files from the output directory.
 `container.baseImage` controls the generated Dockerfile `FROM` image and
 defaults to `eclipse-temurin:21-jre`.
+`container.hostPort` controls the host port published by docker compose.
+`container.containerPort` controls the container port and Dockerfile `EXPOSE`.
 
 For a single selected module, no generated host is created and `bundleBuild`
 delegates to that module's standalone build task instead of copying to

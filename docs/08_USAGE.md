@@ -224,7 +224,7 @@ distributions:
     modules:
       - payment
       - notification
-	      - audit
+      - audit
 ```
 
 Format baru untuk satu distribution per file:
@@ -248,7 +248,8 @@ artifact:
 container:
   image: ghcr.io/bud127/document-platform
   baseImage: eclipse-temurin:21-jre
-  port: 8080
+  hostPort: 8080
+  containerPort: 8080
 ```
 
 Command:
@@ -276,18 +277,20 @@ Untuk single distribution file, `name` dipakai sebagai default
 `artifact.fileName` optional. Jika diisi dan `moduleComposer.outputJar` masih
 memakai default, nama final JAR mengikuti nilai itu.
 
-`container.image`, `container.baseImage`, dan `container.port` optional.
-`image` dan `port` ditampilkan oleh `explain` dan `listDistributions`. Untuk
-multi-module `bundleBuild`, metadata container juga menghasilkan file container
-di folder output:
+`container.image`, `container.baseImage`, `container.hostPort`, dan
+`container.containerPort` optional. `hostPort` adalah port host yang dipublish
+oleh docker compose. `containerPort` adalah port container yang dipakai docker
+compose dan Dockerfile `EXPOSE`. Metadata container ditampilkan oleh `explain`
+dan `listDistributions`. Untuk multi-module `bundleBuild`, metadata container
+juga menghasilkan file container di folder output yang unik per aplikasi:
 
 ```text
-build/module-composer/output/Dockerfile
-build/module-composer/output/docker-compose.yml
+build/module-composer/output/containers/<applicationName>/Dockerfile
+build/module-composer/output/containers/<applicationName>/docker-compose.yml
 ```
 
 Compose file yang dihasilkan akan build image dari JAR final dan map
-`container.port` ke host port yang sama.
+`container.hostPort:container.containerPort`.
 
 Dockerfile yang dihasilkan memakai `container.baseImage` sebagai `FROM`.
 Jika `baseImage` tidak diisi, default-nya `eclipse-temurin:21-jre`.

@@ -56,7 +56,7 @@ build/module-composer/output/application.jar
 
 ```bash
 ./gradlew bundleBuild -Pdistribution=enterprise
-cd build/module-composer/output
+cd build/module-composer/output/containers/enterprise-service
 docker compose -f docker-compose.yml up --build
 ```
 
@@ -67,5 +67,7 @@ build/module-composer/output/application.jar
 ```
 
 `Dockerfile` and `docker-compose.yml` are generated in
-`build/module-composer/output` because `distributions/enterprise.yaml` defines
-container metadata.
+`build/module-composer/output/containers/enterprise-service` because
+`distributions/enterprise.yaml` defines container metadata.
+The generated compose file publishes `hostPort:containerPort` from the
+distribution YAML.

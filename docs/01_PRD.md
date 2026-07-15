@@ -71,7 +71,8 @@ artifact:
 container:
   image: ghcr.io/bud127/document-platform
   baseImage: eclipse-temurin:21-jre
-  port: 8080
+  hostPort: 8080
+  containerPort: 8080
 ```
 
 `-Pmodules` and `-Pdistribution` are mutually exclusive. A command that provides
@@ -145,9 +146,12 @@ If `artifact.fileName` is provided and the default output location is used,
 multi-module `bundleBuild` writes that file name instead of
 `<applicationName>.jar`.
 If `container` metadata is provided, multi-module `bundleBuild` writes a
-Dockerfile and `docker-compose.yml` next to the final JAR.
+Dockerfile and `docker-compose.yml` under
+`build/module-composer/output/containers/<applicationName>`.
 The generated Dockerfile must use `container.baseImage` when provided and
 default to `eclipse-temurin:21-jre` otherwise.
+The generated Dockerfile must expose `container.containerPort`, and generated
+docker compose must publish `container.hostPort:container.containerPort`.
 
 ## MVP Commands
 

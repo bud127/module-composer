@@ -202,14 +202,16 @@ public final class ModuleSelector {
             return null;
         }
 
-        Integer port = container.port();
-        if (port != null && (port < 1 || port > 65535)) {
-            throw new ModuleComposerException(
-                    "Invalid container port '" + port +
-                            "' from distribution '" + distribution +
-                            "'. Port must be between 1 and 65535."
-            );
-        }
+        Integer hostPort = normalizePort(
+                container.hostPort(),
+                "container hostPort",
+                distribution
+        );
+        Integer containerPort = normalizePort(
+                container.containerPort(),
+                "container containerPort",
+                distribution
+        );
 
         String image = container.image() == null ? null : container.image().trim();
         String baseImage = container.baseImage() == null
@@ -217,15 +219,33 @@ public final class ModuleSelector {
                 : container.baseImage().trim();
         if ((image == null || image.isBlank())
                 && (baseImage == null || baseImage.isBlank())
-                && port == null) {
+                && hostPort == null
+                && containerPort == null) {
             return null;
         }
 
         return new DistributionContainer(
                 image == null || image.isBlank() ? null : image,
                 baseImage == null || baseImage.isBlank() ? null : baseImage,
-                port
+                hostPort,
+                containerPort
         );
+    }
+
+    private static Integer normalizePort(
+            Integer port,
+            String field,
+            String distribution
+    ) {
+        if (port != null && (port < 1 || port > 65535)) {
+            throw new ModuleComposerException(
+                    "Invalid " + field + " '" + port +
+                            "' from distribution '" + distribution +
+                            "'. Port must be between 1 and 65535."
+            );
+        }
+
+        return port;
     }
 
     public interface ProjectValidator {

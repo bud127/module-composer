@@ -132,6 +132,7 @@ Docker:
 
 ```bash
 ./gradlew bundleBuild -Pdistribution=enterprise
+cd build/module-composer/output/containers/enterprise-service
 docker compose -f docker-compose.yml up --build
 ```
 
@@ -154,7 +155,10 @@ samples/springboot-demo/build/module-composer/output/application.jar
 
 The sample sets `artifact.fileName: application.jar` and container metadata,
 including `container.baseImage`, so `bundleBuild` also writes a Dockerfile and
-`docker-compose.yml` next to the JAR.
+`docker-compose.yml` under `build/module-composer/output/containers/<applicationName>`.
+`container.hostPort` is the host port in docker compose, and
+`container.containerPort` is the container port used by compose and Dockerfile
+`EXPOSE`.
 
 ## Publishing
 
