@@ -37,6 +37,8 @@ public final class ModuleSelector {
                 "-PapplicationName"
         );
         String applicationName = requestedApplicationName;
+        DistributionArtifact artifact = null;
+        DistributionContainer container = null;
 
         if (!cliModules.isEmpty()
                 && distribution != null
@@ -53,7 +55,7 @@ public final class ModuleSelector {
             selected.addAll(cliModules);
             mode = SelectionMode.CLI;
         } else if (distribution != null && !distribution.isBlank()) {
-            DistributionConfig config = distributionLoader.loadRequired();
+            DistributionConfig config = distributionLoader.loadRequired(distribution);
             DistributionPreset preset =
                     config.distributions().get(distribution);
 
@@ -72,6 +74,8 @@ public final class ModuleSelector {
                         "distribution '" + distribution + "' applicationName"
                 );
             }
+            artifact = normalizeArtifact(preset.artifact(), distribution);
+            container = normalizeContainer(preset.container(), distribution);
             mode = SelectionMode.DISTRIBUTION;
         } else {
             throw new ModuleComposerException("""
@@ -119,6 +123,8 @@ public final class ModuleSelector {
                 applicationName == null
                         ? DEFAULT_APPLICATION_NAME
                         : applicationName,
+                artifact,
+                container,
                 request.runtimeOptions(),
                 mode
         );
@@ -162,6 +168,64 @@ public final class ModuleSelector {
         }
 
         return normalized;
+    }
+
+    private static DistributionArtifact normalizeArtifact(
+            DistributionArtifact artifact,
+            String distribution
+    ) {
+        if (artifact == null || artifact.fileName() == null) {
+            return null;
+        }
+
+        String fileName = artifact.fileName().trim();
+        if (fileName.isBlank()) {
+            return null;
+        }
+
+        if (fileName.contains("/") || fileName.contains("\\")) {
+            throw new ModuleComposerException(
+                    "Invalid artifact fileName '" + artifact.fileName() +
+                            "' from distribution '" + distribution +
+                            "'. Use a file name only, not a path."
+            );
+        }
+
+        return new DistributionArtifact(fileName);
+    }
+
+    private static DistributionContainer normalizeContainer(
+            DistributionContainer container,
+            String distribution
+    ) {
+        if (container == null) {
+            return null;
+        }
+
+        Integer port = container.port();
+        if (port != null && (port < 1 || port > 65535)) {
+            throw new ModuleComposerException(
+                    "Invalid container port '" + port +
+                            "' from distribution '" + distribution +
+                            "'. Port must be between 1 and 65535."
+            );
+        }
+
+        String image = container.image() == null ? null : container.image().trim();
+        String baseImage = container.baseImage() == null
+                ? null
+                : container.baseImage().trim();
+        if ((image == null || image.isBlank())
+                && (baseImage == null || baseImage.isBlank())
+                && port == null) {
+            return null;
+        }
+
+        return new DistributionContainer(
+                image == null || image.isBlank() ? null : image,
+                baseImage == null || baseImage.isBlank() ? null : baseImage,
+                port
+        );
     }
 
     public interface ProjectValidator {

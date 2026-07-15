@@ -82,9 +82,9 @@ generatedBuild
   -> clean, bootJar in generated host
 ```
 
-The root Gradle plugin still owns Gradle task registration, `GradleBuild`, and
-archive file providers. These details do not leak into core selection or
-planning.
+The root Gradle plugin still owns Gradle task registration, generated-host
+`Exec` invocations, and archive file providers. These details do not leak into
+core selection or planning.
 
 ## Future Maven Mapping
 

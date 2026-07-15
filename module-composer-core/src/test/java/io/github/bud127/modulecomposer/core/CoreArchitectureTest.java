@@ -146,6 +146,61 @@ class CoreArchitectureTest {
     }
 
     @Test
+    void selectorResolvesSingleDistributionFileWithArtifactAndContainer()
+            throws IOException {
+        Path yaml = directory.resolve("distributions/document-platform.yaml");
+        Files.createDirectories(yaml.getParent());
+        Files.writeString(yaml, """
+                name: document-platform
+                version: 0.1.0
+
+                modules:
+                  - document
+                  - email
+                  - upload
+
+                artifact:
+                  fileName: application.jar
+
+                container:
+                  image: ghcr.io/bud127/document-platform
+                  baseImage: amazoncorretto:21-alpine
+                  port: 8080
+                """);
+
+        ModuleRegistry registry = new ModuleRegistry();
+        registry.register(module("document", ":module-document"));
+        registry.register(module("email", ":module-email"));
+        registry.register(module("upload", ":module-upload"));
+
+        ModuleSelection selection = new ModuleSelector(
+                registry,
+                new DistributionLoader(directory.resolve("distributions.yml")),
+                path -> true
+        ).resolve(new SelectionRequest(
+                List.of(),
+                "document-platform",
+                null,
+                List.of(),
+                List.of(),
+                RuntimeOptions.none()
+        ));
+
+        assertEquals(
+                List.of("document", "email", "upload"),
+                selection.moduleNames()
+        );
+        assertEquals("document-platform", selection.applicationName());
+        assertEquals("application.jar", selection.artifact().fileName());
+        assertEquals(
+                "ghcr.io/bud127/document-platform",
+                selection.container().image()
+        );
+        assertEquals("amazoncorretto:21-alpine", selection.container().baseImage());
+        assertEquals(8080, selection.container().port());
+    }
+
+    @Test
     void plannerCreatesGeneratedHostPlanForMultipleModules() {
         ModuleSelection selection = new ModuleSelection(
                 List.of(
@@ -154,6 +209,8 @@ class CoreArchitectureTest {
                 ),
                 null,
                 "combined-app",
+                null,
+                null,
                 RuntimeOptions.none(),
                 SelectionMode.CLI
         );

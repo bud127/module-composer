@@ -11,7 +11,7 @@
 - Module dependency conflict resolution is left to the active build tool and
   framework.
 - `-Pport` affects `bundleRun` only. Built JARs should receive runtime ports with
-  `java -jar combined-app.jar --server.port=9090`.
+  a runtime argument such as `java -jar app.jar --server.port=9090`.
 - Module configuration classes must be provided explicitly in module DSL.
-- The root plugin still ships with the Spring Boot adapter on its runtime
-  classpath for backward compatibility.
+- The root plugin currently ships with the Spring Boot adapter on its runtime
+  classpath.

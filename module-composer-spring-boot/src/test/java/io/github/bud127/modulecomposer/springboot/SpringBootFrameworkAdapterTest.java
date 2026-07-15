@@ -28,7 +28,9 @@ class SpringBootFrameworkAdapterTest {
                 List.of(module("payment")),
                 RuntimeOptions.none(),
                 null,
-                "custom-service"
+                "custom-service",
+                null,
+                null
         );
 
         adapter.generateHost(

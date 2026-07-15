@@ -16,8 +16,10 @@ More than 1 selected module
 -> run/build a combined application
 ```
 
-`distributions.yml` is optional. Use `-Pmodules` for small or ad hoc module
-sets. Use `-Pdistribution` for large or frequently reused combinations.
+Distribution YAML is optional. Use `-Pmodules` for small or ad hoc module sets.
+Use `-Pdistribution` for large or frequently reused combinations. Distribution
+presets can live in `distributions.yml` or one file per distribution under
+`distributions/<name>.yaml`.
 
 ## Module Structure
 
@@ -41,10 +43,10 @@ Docs:
 ```text
 docs/02_ARCHITECTURE.md
 docs/03_PLUGIN_API.md
-docs/09_USAGE.md
+docs/08_USAGE.md
+docs/09_BUILD_RUN_FLOW.md
 docs/06_BUILD_TOOL_ADAPTER.md
 docs/07_PUBLISHING.md
-docs/08_UML_ARCHITECTURE.puml
 ```
 
 ## Framework Adapter Architecture
@@ -130,7 +132,7 @@ Docker:
 
 ```bash
 ./gradlew bundleBuild -Pdistribution=enterprise
-docker compose up --build
+docker compose -f docker-compose.yml up --build
 ```
 
 Combined output without an application name:
@@ -139,14 +141,20 @@ Combined output without an application name:
 samples/springboot-demo/build/module-composer/output/combined-app.jar
 ```
 
-When `-PapplicationName` or a distribution `applicationName` is provided, the
-default bundle output name becomes `<applicationName>.jar`.
+This output path is produced for generated-host builds. Single-module builds
+delegate to that module's standalone build task. When `-PapplicationName` or a
+distribution `applicationName` is provided, the default generated-host output
+name becomes `<applicationName>.jar`.
 
 The sample `enterprise` distribution uses:
 
 ```text
-samples/springboot-demo/build/module-composer/output/enterprise-service.jar
+samples/springboot-demo/build/module-composer/output/application.jar
 ```
+
+The sample sets `artifact.fileName: application.jar` and container metadata,
+including `container.baseImage`, so `bundleBuild` also writes a Dockerfile and
+`docker-compose.yml` next to the JAR.
 
 ## Publishing
 

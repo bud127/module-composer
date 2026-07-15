@@ -7,9 +7,11 @@ springboot-demo/
 ├── module-payment/
 ├── module-notification/
 ├── module-audit/
-├── distributions.yml
-├── Dockerfile
-└── compose.yml
+├── distributions/
+│   ├── payment-only.yaml
+│   ├── community.yaml
+│   └── enterprise.yaml
+└── scripts/
 ```
 
 ## Single module
@@ -47,12 +49,23 @@ Generated host runs on port `8080`.
 Output:
 
 ```text
-build/module-composer/output/enterprise-service.jar
+build/module-composer/output/application.jar
 ```
 
 ## Docker
 
 ```bash
 ./gradlew bundleBuild -Pdistribution=enterprise
-docker compose up --build
+cd build/module-composer/output
+docker compose -f docker-compose.yml up --build
 ```
+
+The Docker image is built from:
+
+```text
+build/module-composer/output/application.jar
+```
+
+`Dockerfile` and `docker-compose.yml` are generated in
+`build/module-composer/output` because `distributions/enterprise.yaml` defines
+container metadata.

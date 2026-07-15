@@ -6,6 +6,8 @@ public record ModuleSelection(
         List<ModuleRegistration> modules,
         String distribution,
         String applicationName,
+        DistributionArtifact artifact,
+        DistributionContainer container,
         RuntimeOptions runtimeOptions,
         SelectionMode mode
 ) {

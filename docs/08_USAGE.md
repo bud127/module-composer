@@ -1,7 +1,7 @@
 # Panduan Penggunaan
 
 Dokumen ini menjelaskan cara memakai Module Composer dari konfigurasi Gradle,
-command CLI, sampai penggunaan `distributions.yml`.
+command CLI, sampai penggunaan distribution YAML.
 
 ## Konsep Singkat
 
@@ -17,8 +17,11 @@ Lebih dari 1 module dipilih
 -> run/build satu aplikasi gabungan
 ```
 
-`distributions.yml` bersifat optional. Gunakan `-Pmodules` untuk kombinasi
+Distribution YAML bersifat optional. Gunakan `-Pmodules` untuk kombinasi
 sementara, dan gunakan `-Pdistribution` untuk kombinasi yang sering dipakai.
+Distribution bisa disimpan di `distributions.yml` atau satu file per distribution
+di `distributions/<name>.yaml`. Keduanya tidak boleh dipakai dalam command yang
+sama.
 
 ## Konfigurasi Root Project
 
@@ -34,7 +37,7 @@ Konfigurasi minimal:
 
 ```kotlin
 moduleComposer {
-    distributionFile.set("distributions.yml")
+    distributionFile.set("distributions")
 }
 ```
 
@@ -42,7 +45,7 @@ Konfigurasi lengkap yang umum dipakai:
 
 ```kotlin
 moduleComposer {
-    distributionFile.set("distributions.yml")
+    distributionFile.set("distributions")
 
     springBootVersion.set("3.5.7")
     dependencyManagementVersion.set("1.1.7")
@@ -79,6 +82,13 @@ dipakai, output menjadi:
 build/module-composer/generated/<applicationName>/
 build/module-composer/output/<applicationName>.jar
 ```
+
+Output di atas hanya berlaku untuk generated host mode. Untuk satu module,
+`bundleBuild` menjalankan standalone build task milik module tersebut dan output
+mengikuti konfigurasi module.
+
+`applicationName` harus memakai huruf, angka, titik, underscore, atau dash, dan
+harus dimulai dengan huruf atau angka.
 
 ## Konfigurasi Module
 
@@ -155,6 +165,25 @@ Build beberapa module sebagai bundle JAR:
 ./gradlew bundleBuild -Pmodules=payment,notification
 ```
 
+Build dengan validasi test selected modules:
+
+```bash
+./gradlew bundleBuild \
+  -Pmodules=payment,notification \
+  -Pvalidation=test
+```
+
+Nilai validasi yang didukung:
+
+```text
+none
+test
+check
+```
+
+Default-nya `none`. `test` menjalankan `:module-x:test` untuk setiap selected
+module. `check` menjalankan `:module-x:check`.
+
 Build dengan nama aplikasi dan nama bundle custom:
 
 ```bash
@@ -172,7 +201,9 @@ build/module-composer/output/custom-service.jar
 
 ## Distribution YAML
 
-Buat file `distributions.yml` di root project aplikasi.
+Ada dua format distribution yang didukung.
+
+Format lama untuk banyak preset dalam satu file `distributions.yml`:
 
 ```yaml
 version: 1
@@ -193,7 +224,44 @@ distributions:
     modules:
       - payment
       - notification
-      - audit
+	      - audit
+```
+
+Format baru untuk satu distribution per file:
+
+```text
+distributions/document-platform.yaml
+```
+
+```yaml
+name: document-platform
+version: 0.1.0
+
+modules:
+  - document
+  - email
+  - upload
+
+artifact:
+  fileName: application.jar
+
+container:
+  image: ghcr.io/bud127/document-platform
+  baseImage: eclipse-temurin:21-jre
+  port: 8080
+```
+
+Command:
+
+```bash
+./gradlew bundleBuild -Pdistribution=document-platform
+```
+
+Output multi-module dengan `artifact.fileName`:
+
+```text
+build/module-composer/generated/document-platform/
+build/module-composer/output/application.jar
 ```
 
 `applicationName` optional. Jika diisi, nilainya dipakai untuk:
@@ -201,6 +269,34 @@ distributions:
 - `spring.application.name` di generated Spring Boot application
 - generated host directory default
 - final bundle name default
+
+Untuk single distribution file, `name` dipakai sebagai default
+`applicationName` jika `applicationName` tidak diisi.
+
+`artifact.fileName` optional. Jika diisi dan `moduleComposer.outputJar` masih
+memakai default, nama final JAR mengikuti nilai itu.
+
+`container.image`, `container.baseImage`, dan `container.port` optional.
+`image` dan `port` ditampilkan oleh `explain` dan `listDistributions`. Untuk
+multi-module `bundleBuild`, metadata container juga menghasilkan file container
+di folder output:
+
+```text
+build/module-composer/output/Dockerfile
+build/module-composer/output/docker-compose.yml
+```
+
+Compose file yang dihasilkan akan build image dari JAR final dan map
+`container.port` ke host port yang sama.
+
+Dockerfile yang dihasilkan memakai `container.baseImage` sebagai `FROM`.
+Jika `baseImage` tidak diisi, default-nya `eclipse-temurin:21-jre`.
+
+Jika distribution tidak punya `container`, `bundleBuild` tidak membuat file
+container dan akan menghapus file container generated lama dari folder output.
+
+Untuk distribution yang hanya berisi satu module, `bundleBuild` tetap memakai
+standalone mode dan tidak membuat final bundle di `build/module-composer/output`.
 
 Command memakai distribution:
 
@@ -213,7 +309,7 @@ Output untuk contoh `enterprise`:
 
 ```text
 build/module-composer/generated/enterprise-service/
-build/module-composer/output/enterprise-service.jar
+build/module-composer/output/application.jar
 ```
 
 ## Override Distribution
@@ -246,7 +342,7 @@ Prioritas nama aplikasi:
 
 ```text
 -PapplicationName
--> distributions.yml applicationName
+-> distribution YAML applicationName
 -> combined-app
 ```
 
@@ -266,7 +362,7 @@ antar distribution dengan nama berbeda tidak saling menimpa:
 build/module-composer/generated/community-service/
 build/module-composer/generated/enterprise-service/
 build/module-composer/output/community-service.jar
-build/module-composer/output/enterprise-service.jar
+build/module-composer/output/application.jar
 ```
 
 ## Catatan Output
@@ -288,9 +384,11 @@ ambigu. Pilih salah satu.
 `Unknown module` berarti nama module belum terdaftar melalui
 `io.github.bud127.module-composer-module`.
 
-`Unknown distribution` berarti nama distribution tidak ada di
-`distributions.yml`.
+`Unknown distribution` berarti nama distribution tidak ada di distribution YAML
+yang dikonfigurasi.
 
 `Invalid application name` berarti nama aplikasi memakai karakter yang tidak
 didukung. Gunakan huruf, angka, titik, underscore, atau dash, dan mulai dengan
 huruf atau angka.
+
+`Invalid validation` berarti `-Pvalidation` bukan `none`, `test`, atau `check`.

@@ -12,6 +12,8 @@ import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -201,6 +203,24 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                                 preset.applicationName()
                         );
                     }
+                    if (preset.artifact() != null
+                            && preset.artifact().fileName() != null) {
+                        project.getLogger().lifecycle(
+                                "      artifact: {}",
+                                preset.artifact().fileName()
+                        );
+                    }
+                    if (preset.container() != null) {
+                        project.getLogger().lifecycle(
+                                "      container: {}:{}",
+                                preset.container().image() == null
+                                        ? "(no image)"
+                                        : preset.container().image(),
+                                preset.container().port() == null
+                                        ? "default"
+                                        : preset.container().port()
+                        );
+                    }
                 });
             });
         });
@@ -217,11 +237,18 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         ModuleRegistration module = plan.modules().get(0);
         BuildInvocation run = buildTool.standaloneRun(adapter, module);
         BuildInvocation build = buildTool.standaloneBuild(adapter, module);
+        List<String> validationTasks = validationTasks(root, plan);
 
         configureRunParameters(root, buildTool, run);
 
-        bundleRun.configure(task -> task.dependsOn(run.steps()));
-        bundleBuild.configure(task -> task.dependsOn(build.steps()));
+        bundleRun.configure(task -> {
+            task.dependsOn(validationTasks);
+            task.dependsOn(run.steps());
+        });
+        bundleBuild.configure(task -> {
+            task.dependsOn(validationTasks);
+            task.dependsOn(build.steps());
+        });
     }
 
     private void configureGeneratedHost(
@@ -235,6 +262,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
     ) {
         List<String> jarTasks = new ArrayList<>();
         List<Provider<String>> jarPaths = new ArrayList<>();
+        List<String> validationTasks = validationTasks(root, plan);
 
         for (String projectPath : extension.getCommonProjectPaths().get()) {
             BuildInvocation artifact = buildTool.projectArtifact(projectPath);
@@ -266,8 +294,9 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                         "prepareGeneratedHost",
                         GenerateHostTask.class,
                         task -> {
-                            task.setGroup("module composer");
-                            task.dependsOn(jarTasks);
+	                            task.setGroup("module composer");
+	                            task.dependsOn(validationTasks);
+	                            task.dependsOn(jarTasks);
                             task.setAdapter(adapter);
                             task.setPlan(plan);
                             task.getHostDirectory().set(hostDirectory);
@@ -357,6 +386,8 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                             );
                         });
 
+                        writeContainerFiles(plan, target);
+
                         root.getLogger().lifecycle(
                                 "Combined JAR: {}",
                                 target.getAbsolutePath()
@@ -367,6 +398,37 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
 
         bundleRun.configure(task -> task.dependsOn(runGenerated));
         bundleBuild.configure(task -> task.dependsOn(copyJar));
+    }
+
+    private List<String> validationTasks(Project root, CompositionPlan plan) {
+        String validation = validationMode(root);
+        if (validation.equals("none")) {
+            return List.of();
+        }
+
+        return plan.modules()
+                .stream()
+                .map(module -> module.projectPath() + ":" + validation)
+                .toList();
+    }
+
+    private static String validationMode(Project root) {
+        String value = stringProperty(root, "validation");
+        if (value == null || value.isBlank()) {
+            return "none";
+        }
+
+        String normalized = value.trim().toLowerCase();
+        if (normalized.equals("none")
+                || normalized.equals("test")
+                || normalized.equals("check")) {
+            return normalized;
+        }
+
+        throw new GradleException(
+                "Invalid validation '" + value +
+                        "'. -Pvalidation must be one of: none, test, check."
+        );
     }
 
     private void configureRunParameters(
@@ -455,6 +517,84 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         );
     }
 
+    private void writeContainerFiles(CompositionPlan plan, File outputJar) {
+        File directory = outputJar.getParentFile();
+        if (plan.container() == null) {
+            deleteContainerFiles(directory);
+            return;
+        }
+
+        Integer port = plan.container().port() == null
+                ? 8080
+                : plan.container().port();
+        String image = plan.container().image() == null
+                ? plan.applicationName() + ":local"
+                : plan.container().image();
+        String baseImage = plan.container().baseImage() == null
+                ? "eclipse-temurin:21-jre"
+                : plan.container().baseImage();
+
+        try {
+            Files.writeString(
+                    directory.toPath().resolve("Dockerfile"),
+                    """
+                    FROM %s
+
+                    WORKDIR /app
+
+                    ARG JAR_FILE=%s
+                    COPY ${JAR_FILE} /app/app.jar
+
+                    EXPOSE %d
+
+                    ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+                    """.formatted(baseImage, outputJar.getName(), port)
+            );
+
+            Files.writeString(
+                    directory.toPath().resolve("docker-compose.yml"),
+                    """
+                    services:
+                      %s:
+                        build:
+                          context: .
+                          dockerfile: Dockerfile
+                          args:
+                            JAR_FILE: %s
+                        image: %s
+                        ports:
+                          - "%d:%d"
+                        restart: unless-stopped
+                    """.formatted(
+                            containerServiceName(plan.applicationName()),
+                            outputJar.getName(),
+                            image,
+                            port,
+                            port
+                    )
+            );
+        } catch (IOException exception) {
+            throw new GradleException(
+                    "Unable to write container files to " +
+                            directory.getAbsolutePath(),
+                    exception
+            );
+        }
+    }
+
+    private void deleteContainerFiles(File directory) {
+        try {
+            Files.deleteIfExists(directory.toPath().resolve("Dockerfile"));
+            Files.deleteIfExists(directory.toPath().resolve("docker-compose.yml"));
+        } catch (IOException exception) {
+            throw new GradleException(
+                    "Unable to remove stale container files from " +
+                            directory.getAbsolutePath(),
+                    exception
+            );
+        }
+    }
+
     private static RuntimeOptions runtimeOptions(Project root) {
         return new RuntimeOptions(
                 resolvePort(root),
@@ -537,6 +677,24 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             project.getLogger().lifecycle("Distribution   : {}", plan.distribution());
         }
         project.getLogger().lifecycle("Application    : {}", plan.applicationName());
+        project.getLogger().lifecycle("Validation     : {}", validationMode(project));
+        if (plan.artifact() != null && plan.artifact().fileName() != null) {
+            project.getLogger().lifecycle(
+                    "Artifact       : {}",
+                    plan.artifact().fileName()
+            );
+        }
+        if (plan.container() != null) {
+            project.getLogger().lifecycle(
+                    "Container      : {}:{}",
+                    plan.container().image() == null
+                            ? "(no image)"
+                            : plan.container().image(),
+                    plan.container().port() == null
+                            ? "default"
+                            : plan.container().port()
+            );
+        }
         project.getLogger().lifecycle(
                 "Port           : {}",
                 plan.runtimeOptions().port() == null
@@ -580,6 +738,11 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         if (!configured.getName().equals("combined-app.jar")) {
             return configured;
         }
+        if (plan.artifact() != null && plan.artifact().fileName() != null) {
+            return configured.toPath()
+                    .resolveSibling(plan.artifact().fileName())
+                    .toFile();
+        }
         return configured.toPath()
                 .resolveSibling(plan.applicationName() + ".jar")
                 .toFile();
@@ -612,5 +775,14 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         }
 
         return configured;
+    }
+
+    private static String containerServiceName(String value) {
+        String normalized = value
+                .toLowerCase()
+                .replaceAll("[^a-z0-9_-]+", "-")
+                .replaceAll("^-+", "")
+                .replaceAll("-+$", "");
+        return normalized.isBlank() ? "app" : normalized;
     }
 }

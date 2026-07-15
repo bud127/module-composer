@@ -12,7 +12,7 @@ allprojects {
 }
 
 moduleComposer {
-    distributionFile.set("distributions.yml")
+    distributionFile.set("distributions")
 
     outputJar.set(
         layout.buildDirectory.file(

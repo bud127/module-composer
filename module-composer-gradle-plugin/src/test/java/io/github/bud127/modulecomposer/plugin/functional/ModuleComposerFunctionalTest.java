@@ -84,6 +84,50 @@ class ModuleComposerFunctionalTest {
     }
 
     @Test
+    void validationTestRunsSelectedModuleTestTasks() throws IOException {
+        writeProject(List.of("payment", "notification"), false);
+
+        BuildResult result = run(
+                "bundleBuild",
+                "-Pmodules=payment,notification",
+                "-Pvalidation=test",
+                "--dry-run"
+        );
+
+        assertTrue(result.getOutput().contains(":module-payment:test SKIPPED"));
+        assertTrue(result.getOutput().contains(":module-notification:test SKIPPED"));
+        assertTrue(result.getOutput().contains(":prepareGeneratedHost SKIPPED"));
+    }
+
+    @Test
+    void validationCheckRunsSelectedModuleCheckTasks() throws IOException {
+        writeProject(List.of("payment"), false);
+
+        BuildResult result = run(
+                "bundleBuild",
+                "-Pmodules=payment",
+                "-Pvalidation=check",
+                "--dry-run"
+        );
+
+        assertTrue(result.getOutput().contains(":module-payment:check SKIPPED"));
+        assertTrue(result.getOutput().contains(":module-payment:bootJar SKIPPED"));
+    }
+
+    @Test
+    void invalidValidationModeFails() throws IOException {
+        writeProject(List.of("payment"), false);
+
+        BuildResult result = fail(
+                "bundleBuild",
+                "-Pmodules=payment",
+                "-Pvalidation=verify"
+        );
+
+        assertTrue(result.getOutput().contains("Invalid validation 'verify'"));
+    }
+
+    @Test
     void distributionRequiresYaml() throws IOException {
         writeProject(List.of("payment"), false);
 
@@ -206,6 +250,7 @@ class ModuleComposerFunctionalTest {
 
         assertTrue(result.getOutput().contains("Selection mode : CLI"));
         assertTrue(result.getOutput().contains("Execution      : STANDALONE"));
+        assertTrue(result.getOutput().contains("Validation     : none"));
         assertTrue(result.getOutput().contains("Port           : default"));
         assertTrue(result.getOutput().contains(":module-payment:bootRun"));
     }
@@ -249,6 +294,65 @@ class ModuleComposerFunctionalTest {
         assertTrue(result.getOutput().contains("Application    : community-service"));
         assertTrue(result.getOutput().contains("build/module-composer/generated/community-service"));
         assertTrue(result.getOutput().contains("build/module-composer/output/community-service.jar"));
+    }
+
+    @Test
+    void singleDistributionFileCanSetArtifactAndContainerMetadata()
+            throws IOException {
+        writeProject(List.of("document", "email", "upload"), false);
+        write("distributions/document-platform.yaml", """
+                name: document-platform
+                version: 0.1.0
+
+                modules:
+                  - document
+                  - email
+                  - upload
+
+                artifact:
+                  fileName: application.jar
+
+                container:
+                  image: ghcr.io/bud127/document-platform
+                  baseImage: amazoncorretto:21-alpine
+                  port: 8080
+                """);
+
+        BuildResult result = run(
+                "explain",
+                "-Pdistribution=document-platform"
+        );
+
+        assertTrue(result.getOutput().contains("Application    : document-platform"));
+        assertTrue(result.getOutput().contains("Artifact       : application.jar"));
+        assertTrue(result.getOutput().contains("Container      : ghcr.io/bud127/document-platform:8080"));
+        assertTrue(result.getOutput().contains("build/module-composer/generated/document-platform"));
+        assertTrue(result.getOutput().contains("build/module-composer/output/application.jar"));
+    }
+
+    @Test
+    void distributionWithoutContainerDoesNotReportContainerMetadata()
+            throws IOException {
+        writeProject(List.of("document", "email"), false);
+        write("distributions/document-platform.yaml", """
+                name: document-platform
+                version: 0.1.0
+
+                modules:
+                  - document
+                  - email
+
+                artifact:
+                  fileName: application.jar
+                """);
+
+        BuildResult result = run(
+                "explain",
+                "-Pdistribution=document-platform"
+        );
+
+        assertTrue(result.getOutput().contains("Artifact       : application.jar"));
+        assertTrue(!result.getOutput().contains("Container      :"));
     }
 
     @Test
@@ -396,10 +500,24 @@ class ModuleComposerFunctionalTest {
                         println("bootJar %s")
                     }
                 }
+
+                tasks.named("test") {
+                    doLast {
+                        println("test %s")
+                    }
+                }
+
+                tasks.named("check") {
+                    doLast {
+                        println("check %s")
+                    }
+                }
                 """.formatted(
                 moduleName,
                 moduleName,
                 capitalize(moduleName),
+                moduleName,
+                moduleName,
                 moduleName,
                 moduleName
         ));

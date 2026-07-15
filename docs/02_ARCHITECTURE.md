@@ -31,7 +31,7 @@ Module Composer Core
                 +-- Maven Build Tool Adapter (future)
 ```
 
-PlantUML diagrams are available in [UML Architecture](08_UML_ARCHITECTURE.puml).
+This document is the source architecture overview for the current repository.
 
 ## Plugins
 
@@ -93,11 +93,14 @@ FrameworkAdapterRegistry
 ```text
 -Pmodules
   -> resolve names directly from module registry
-  -> do not load distributions.yml
+  -> do not load distribution YAML
 
 -Pdistribution
-  -> load distributions.yml
+  -> load distributions.yml or distributions/<name>.yaml
   -> resolve preset module names from module registry
+
+-Pmodules + -Pdistribution
+  -> fail as ambiguous
 
 base selection
   -> includeModules
@@ -164,6 +167,22 @@ classes.
 
 ## Final Build Output
 
+Standalone mode does not copy to `build/module-composer/output`; it delegates to
+the selected module's standalone build task.
+
+Generated host mode copies the generated host artifact to:
+
 ```text
-sample/build/module-composer/output/combined-app.jar
+sample/build/module-composer/output/<applicationName>.jar
 ```
+
+With the default application name, this becomes
+`sample/build/module-composer/output/combined-app.jar`.
+
+When a distribution provides `artifact.fileName`, generated host mode copies to
+that file name instead. When a distribution provides `container` metadata,
+`bundleBuild` writes `Dockerfile` and `docker-compose.yml` next to the final JAR.
+Without `container` metadata, generated container files are not kept in the
+output directory.
+The generated Dockerfile uses `container.baseImage` or defaults to
+`eclipse-temurin:21-jre`.

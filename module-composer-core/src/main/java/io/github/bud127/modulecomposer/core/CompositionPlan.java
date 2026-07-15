@@ -9,7 +9,9 @@ public record CompositionPlan(
         List<ModuleRegistration> modules,
         RuntimeOptions runtimeOptions,
         String distribution,
-        String applicationName
+        String applicationName,
+        DistributionArtifact artifact,
+        DistributionContainer container
 ) {
     public boolean isStandalone() {
         return executionMode == ExecutionMode.STANDALONE;

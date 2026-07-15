@@ -16,7 +16,7 @@ plugins {
 }
 
 moduleComposer {
-    distributionFile.set("distributions.yml")
+    distributionFile.set("distributions")
 
     commonProjectPaths.set(
         listOf(":platform-health")
@@ -37,6 +37,9 @@ framework              = spring-boot
 generatedHostDirectory = build/module-composer/generated/combined-app
 outputJar              = build/module-composer/output/combined-app.jar
 distributionFile       = distributions.yml
+springBootVersion      = 3.5.7
+dependencyManagement   = 1.1.7
+javaVersion            = 21
 ```
 
 If `-PapplicationName` or a distribution YAML `applicationName` is provided and
@@ -44,15 +47,36 @@ the default generated host/output locations are used, the generated host and
 bundle are written as `build/module-composer/generated/<applicationName>/` and
 `build/module-composer/output/<applicationName>.jar`.
 
+`distributionFile` may point to either a multi-preset YAML file such as
+`distributions.yml` or a directory containing single distribution files such as
+`distributions/enterprise.yaml`.
+
+Application names must match `[A-Za-z0-9][A-Za-z0-9._-]*`. `-PapplicationName`
+has priority over a distribution YAML `applicationName`.
+
+If a distribution provides `artifact.fileName`, generated-host `bundleBuild`
+uses that file name while the default `outputJar` is still configured. If it
+provides `container` metadata, generated-host `bundleBuild` writes `Dockerfile`
+and `docker-compose.yml` next to the final JAR.
+If `container` metadata is absent, generated-host `bundleBuild` removes stale
+generated container files from the output directory.
+`container.baseImage` controls the generated Dockerfile `FROM` image and
+defaults to `eclipse-temurin:21-jre`.
+
+For a single selected module, no generated host is created and `bundleBuild`
+delegates to that module's standalone build task instead of copying to
+`moduleComposer.outputJar`.
+
 The root plugin discovers framework adapters through `ServiceLoader`. The
-current distribution includes `SpringBootFrameworkAdapter`.
+current distribution includes `SpringBootFrameworkAdapter` on the root plugin
+runtime classpath through `module-composer-spring-boot`.
 
 ## Framework Adapter API
 
 ```java
 public interface FrameworkAdapter {
     String frameworkId();
-    void generateHost(CompositionPlan plan, GeneratedHostContext context);
+    void generateHost(CompositionPlan plan, GeneratedHostContext context) throws IOException;
     String standaloneRunTask(ModuleRegistration module);
     String standaloneBuildTask(ModuleRegistration module);
     String generatedRunTask();
@@ -108,6 +132,7 @@ moduleComposerModule {
 
 The module plugin derives the project path and plain JAR task. The default
 logical name is the Gradle project name with a leading `module-` removed.
+Default task names are `bootRun`, `bootJar`, and `jar`.
 
 ## CLI
 
@@ -129,6 +154,8 @@ With YAML:
 ./gradlew bundleBuild -Pdistribution=enterprise -PexcludeModules=audit
 ```
 
+`-Pmodules` and `-Pdistribution` are mutually exclusive.
+
 Overrides:
 
 ```bash
@@ -138,3 +165,14 @@ Overrides:
   -PincludeModules=fraud \
   -PexcludeModules=audit
 ```
+
+Validation:
+
+```bash
+./gradlew bundleBuild -Pdistribution=enterprise -Pvalidation=test
+./gradlew bundleRun -Pmodules=payment,notification -Pvalidation=check
+```
+
+`-Pvalidation` supports `none`, `test`, and `check`. The default is `none`.
+`test` and `check` run the matching task on each selected module before
+standalone or generated-host execution.
