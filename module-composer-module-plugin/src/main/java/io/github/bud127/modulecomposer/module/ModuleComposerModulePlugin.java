@@ -1,5 +1,6 @@
 package io.github.bud127.modulecomposer.module;
 
+import io.github.bud127.modulecomposer.core.ModuleComposerDefaults;
 import io.github.bud127.modulecomposer.core.ModuleRegistration;
 import io.github.bud127.modulecomposer.core.ModuleRegistry;
 import org.gradle.api.GradleException;
@@ -22,10 +23,25 @@ public final class ModuleComposerModulePlugin implements Plugin<Project> {
                         ModuleComposerModuleExtension.class
                 );
 
+        configureExtensionDefaults(extension);
         extension.getName().convention(defaultModuleName(project));
 
         project.afterEvaluate(ignored -> registry(project.getRootProject())
                 .register(toRegistration(project, extension)));
+    }
+
+    private static void configureExtensionDefaults(
+            ModuleComposerModuleExtension extension
+    ) {
+        extension.getStandaloneRunTask().convention(
+                ModuleComposerDefaults.DEFAULT_STANDALONE_RUN_TASK
+        );
+        extension.getStandaloneBuildTask().convention(
+                ModuleComposerDefaults.DEFAULT_STANDALONE_BUILD_TASK
+        );
+        extension.getPlainJarTask().convention(
+                ModuleComposerDefaults.DEFAULT_PLAIN_JAR_TASK
+        );
     }
 
     public static ModuleRegistry registry(Project root) {
@@ -72,7 +88,13 @@ public final class ModuleComposerModulePlugin implements Plugin<Project> {
     }
 
     private static String normalize(String name) {
-        return name.trim().replaceFirst("^module-", "");
+        String normalized = name.trim();
+        if (normalized.startsWith(ModuleComposerDefaults.MODULE_PROJECT_PREFIX)) {
+            return normalized.substring(
+                    ModuleComposerDefaults.MODULE_PROJECT_PREFIX.length()
+            );
+        }
+        return normalized;
     }
 
     private static String absoluteTaskPath(Project project, String task) {

@@ -3,6 +3,7 @@ package io.github.bud127.modulecomposer.springboot;
 import io.github.bud127.modulecomposer.core.CompositionPlan;
 import io.github.bud127.modulecomposer.core.FrameworkAdapter;
 import io.github.bud127.modulecomposer.core.GeneratedHostContext;
+import io.github.bud127.modulecomposer.core.ModuleComposerDefaults;
 import io.github.bud127.modulecomposer.core.ModuleRegistration;
 
 import java.io.IOException;
@@ -12,13 +13,16 @@ import java.util.List;
 
 public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
 
-    public static final String ID = "spring-boot";
+    public static final String ID = ModuleComposerDefaults.DEFAULT_FRAMEWORK_ID;
 
     private final String springBootVersion;
     private final String dependencyManagementVersion;
 
     public SpringBootFrameworkAdapter() {
-        this("3.5.7", "1.1.7");
+        this(
+                ModuleComposerDefaults.SPRING_BOOT_VERSION,
+                ModuleComposerDefaults.DEPENDENCY_MANAGEMENT_VERSION
+        );
     }
 
     public SpringBootFrameworkAdapter(
@@ -42,11 +46,17 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
         SpringBootGeneratedHostFactory factory =
                 new SpringBootGeneratedHostFactory(
                         context.frameworkOptions()
-                                .getOrDefault("springBootVersion", springBootVersion),
+                                .getOrDefault(
+                                        ModuleComposerDefaults.SPRING_BOOT_VERSION_KEY,
+                                        springBootVersion
+                                ),
                         context.frameworkOptions()
-                                .getOrDefault("dependencyManagementVersion", dependencyManagementVersion)
+                                .getOrDefault(
+                                        ModuleComposerDefaults.DEPENDENCY_MANAGEMENT_VERSION_KEY,
+                                        dependencyManagementVersion
+                                )
                 );
-        factory.generate(plan, context);
+        factory.generate( context);
     }
 
     @Override
@@ -61,12 +71,12 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
 
     @Override
     public String generatedRunTask() {
-        return "bootRun";
+        return ModuleComposerDefaults.DEFAULT_STANDALONE_RUN_TASK;
     }
 
     @Override
     public String generatedBuildTask() {
-        return "bootJar";
+        return ModuleComposerDefaults.DEFAULT_STANDALONE_BUILD_TASK;
     }
 
     @Override
@@ -88,7 +98,6 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
         }
 
         void generate(
-                CompositionPlan plan,
                 GeneratedHostContext context
         ) throws IOException {
             Path host = context.hostDirectory();
@@ -107,7 +116,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
 
             writeSettings(host);
             writeBuild(host, context);
-            writeApplication(javaDirectory, plan, context);
+            writeApplication(javaDirectory, context);
             writeResources(resourcesDirectory);
         }
 
@@ -177,27 +186,30 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                         providers.gradleProperty(key).orNull
                             ?: gradle.startParameter.systemPropertiesArgs[key]
 
-                    tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
-                        controlValue("port")
+                    tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("%s") {
+                        controlValue("%s")
                             ?.takeIf { it.isNotBlank() }
                             ?.let { args("--server.port=$it") }
                     }
 
-                    tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
-                        archiveFileName.set("combined-app.jar")
+                    tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("%s") {
+                        archiveFileName.set("%s.jar")
                     }
                     """.formatted(
                             springBootVersion,
                             dependencyManagementVersion,
                             context.javaVersion(),
-                            dependencies
+                            dependencies,
+                            ModuleComposerDefaults.DEFAULT_STANDALONE_RUN_TASK,
+                            ModuleComposerDefaults.RUNTIME_PORT_PROPERTY,
+                            ModuleComposerDefaults.DEFAULT_STANDALONE_BUILD_TASK,
+                            ModuleComposerDefaults.DEFAULT_APPLICATION_NAME
                     )
             );
         }
 
         private void writeApplication(
                 Path javaDirectory,
-                CompositionPlan plan,
                 GeneratedHostContext context
         ) throws IOException {
             List<String> configurations = context.configurationClasses();
@@ -222,6 +234,11 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                     ? ""
                     : context.distribution();
             String applicationName = context.applicationName();
+            String defaultProperties = defaultProperties(
+                    applicationName,
+                    modules,
+                    distribution
+            );
 
             Files.writeString(
                     javaDirectory.resolve("GeneratedCombinedApplication.java"),
@@ -247,10 +264,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                                     new SpringApplication(GeneratedCombinedApplication.class);
 
                             Map<String, Object> defaults = new LinkedHashMap<>();
-                            defaults.put("spring.application.name", "%s");
-                            defaults.put("server.port", "8080");
-                            defaults.put("composer.modules", "%s");
-                            defaults.put("composer.distribution", "%s");
+                    %s
 
                             application.setDefaultProperties(defaults);
                             application.run(args);
@@ -259,11 +273,30 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                     """.formatted(
                             imports,
                             importedClasses,
-                            applicationName,
-                            modules,
-                            distribution
+                            defaultProperties
                     )
             );
+        }
+
+        private static String defaultProperties(
+                String applicationName,
+                String modules,
+                String distribution
+        ) {
+            return List.of(
+                            defaultProperty("spring.application.name", applicationName),
+                            defaultProperty("server.port", "8080"),
+                            defaultProperty("composer.modules", modules),
+                            defaultProperty("composer.distribution", distribution)
+                    )
+                    .stream()
+                    .reduce("", (left, right) ->
+                            left + "        " + right + System.lineSeparator()
+                    );
+        }
+
+        private static String defaultProperty(String key, String value) {
+            return "defaults.put(\"" + key + "\", \"" + value + "\");";
         }
 
         private void writeResources(Path resourcesDirectory) throws IOException {

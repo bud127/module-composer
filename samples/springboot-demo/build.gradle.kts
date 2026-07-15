@@ -20,7 +20,5 @@ moduleComposer {
         )
     )
 
-    springBootVersion.set("3.5.7")
-    dependencyManagementVersion.set("1.1.7")
     javaVersion.set(21)
 }

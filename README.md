@@ -45,6 +45,9 @@ docs/02_ARCHITECTURE.md
 docs/03_PLUGIN_API.md
 docs/08_USAGE.md
 docs/09_BUILD_RUN_FLOW.md
+docs/10_PRESENTATION_OUTLINE.md
+docs/11_SOURCE_CODE_WALKTHROUGH.md
+docs/12_METHOD_REFERENCE.md
 docs/06_BUILD_TOOL_ADAPTER.md
 docs/07_PUBLISHING.md
 ```
@@ -110,10 +113,21 @@ cd samples/springboot-demo
 chmod +x gradlew
 ```
 
+Public root tasks:
+
+```text
+listModules
+listDistributions
+explain
+bundleRun
+bundleBuild
+```
+
 Without YAML:
 
 ```bash
 ./gradlew listModules
+./gradlew explain -Pmodules=payment,notification
 ./gradlew bundleRun -Pmodules=payment -Pport=9090
 ./gradlew bundleRun -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification
@@ -124,6 +138,7 @@ With YAML presets:
 
 ```bash
 ./gradlew listDistributions
+./gradlew explain -Pdistribution=enterprise
 ./gradlew bundleRun -Pdistribution=community
 ./gradlew bundleBuild -Pdistribution=enterprise -PexcludeModules=audit
 ```
@@ -155,7 +170,10 @@ samples/springboot-demo/build/module-composer/output/application.jar
 
 The sample sets `artifact.fileName: application.jar` and container metadata,
 including `container.baseImage`, so `bundleBuild` also writes a Dockerfile and
-`docker-compose.yml` under `build/module-composer/output/containers/<applicationName>`.
+`docker-compose.yml` under
+`build/module-composer/output/containers/<containerServiceName>`.
+The container service name is derived from `applicationName` and normalized for
+Docker compose service and directory names.
 `container.hostPort` is the host port in docker compose, and
 `container.containerPort` is the container port used by compose and Dockerfile
 `EXPOSE`.

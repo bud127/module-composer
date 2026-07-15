@@ -20,7 +20,7 @@ class SpringBootFrameworkAdapterTest {
     @Test
     void generatesSpringBootHostFiles() throws Exception {
         SpringBootFrameworkAdapter adapter =
-                new SpringBootFrameworkAdapter("3.5.7", "1.1.7");
+                new SpringBootFrameworkAdapter();
         CompositionPlan plan = new CompositionPlan(
                 "spring-boot",
                 ExecutionMode.GENERATED_HOST,

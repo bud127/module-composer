@@ -3,7 +3,7 @@ import org.gradle.plugin.compatibility.compatibility
 plugins {
     `java-gradle-plugin`
     `maven-publish`
-    id("com.gradle.plugin-publish") version "2.1.1"
+    alias(libs.plugins.gradle.plugin.publish)
 }
 
 java {
@@ -21,8 +21,8 @@ dependencies {
     implementation(project(":module-composer-module-plugin"))
     implementation(project(":module-composer-spring-boot"))
     testImplementation(gradleTestKit())
-    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 gradlePlugin {

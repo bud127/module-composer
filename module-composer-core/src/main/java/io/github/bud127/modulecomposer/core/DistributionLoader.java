@@ -11,6 +11,12 @@ import java.util.Map;
 
 public final class DistributionLoader {
 
+    private static final String DISTRIBUTIONS_KEY = "distributions";
+    private static final String YAML_EXTENSION = ".yaml";
+    private static final String YML_EXTENSION = ".yml";
+    private static final String INVALID_YAML_ROOT_MESSAGE = "Invalid YAML root in ";
+    private static final String UNABLE_TO_READ_MESSAGE = "Unable to read ";
+
     private final Path file;
 
     public DistributionLoader(Path file) {
@@ -22,38 +28,54 @@ public final class DistributionLoader {
     }
 
     public DistributionConfig loadRequired() {
-        if (Files.isDirectory(file)) {
-            return loadDirectory();
+        Path source = requiredDistributionSource();
+        return Files.isDirectory(source)
+                ? new DistributionLoader(source).loadDirectory()
+                : parseDistributionFile(source);
+    }
+
+    private Path requiredDistributionSource() {
+        if (Files.exists(file)) {
+            return file;
         }
 
-        if (!Files.exists(file) && Files.isDirectory(defaultDistributionDirectory())) {
-            return new DistributionLoader(defaultDistributionDirectory()).loadRequired();
+        Path defaultDirectory = defaultDistributionDirectory();
+        if (Files.isDirectory(defaultDirectory)) {
+            return defaultDirectory;
         }
 
-        if (!Files.exists(file)) {
-            throw new ModuleComposerException(
-                    "Distribution preset was requested, but no distribution file was found at " +
-                            file.toAbsolutePath() +
-                            ". Distribution presets are optional for -Pmodules, but required for -Pdistribution."
-            );
-        }
+        throw new ModuleComposerException(
+                "Distribution preset was requested, but no distribution file was found at " +
+                        file.toAbsolutePath() +
+                        ". Distribution presets are optional for -Pmodules, but required for -Pdistribution."
+        );
+    }
 
+    private DistributionConfig parseDistributionFile(Path path) {
         try {
-            Object parsed = new Yaml().load(Files.readString(file));
-
-            if (!(parsed instanceof Map<?, ?> root)) {
-                throw new ModuleComposerException("Invalid YAML root in " + file);
-            }
-
-            if (root.get("distributions") instanceof Map<?, ?> distributionMap) {
-                return parseMultiDistributionFile(distributionMap);
-            }
-
-            NamedDistribution distribution = parseSingleDistributionFile(root);
-            return new DistributionConfig(Map.of(distribution.name(), distribution.preset()));
+            Object parsed = new Yaml().load(Files.readString(path));
+            Map<?, ?> root = yamlRoot(parsed, path);
+            return parseDistributionRoot(root);
         } catch (IOException exception) {
-            throw new ModuleComposerException("Unable to read " + file, exception);
+            throw new ModuleComposerException(UNABLE_TO_READ_MESSAGE + path, exception);
         }
+    }
+
+    private static Map<?, ?> yamlRoot(Object parsed, Path path) {
+        if (parsed instanceof Map<?, ?> root) {
+            return root;
+        }
+
+        throw new ModuleComposerException(INVALID_YAML_ROOT_MESSAGE + path);
+    }
+
+    private DistributionConfig parseDistributionRoot(Map<?, ?> root) {
+        if (root.get(DISTRIBUTIONS_KEY) instanceof Map<?, ?> distributionMap) {
+            return parseMultiDistributionFile(distributionMap);
+        }
+
+        NamedDistribution distribution = parseSingleDistributionFile(root);
+        return new DistributionConfig(Map.of(distribution.name(), distribution.preset()));
     }
 
     public DistributionConfig loadRequired(String distributionName) {
@@ -95,15 +117,15 @@ public final class DistributionLoader {
     private DistributionConfig loadDirectory() {
         try (var paths = Files.list(file)) {
             Map<String, DistributionPreset> distributions = new LinkedHashMap<>();
-            paths.filter(path -> path.getFileName().toString().endsWith(".yaml")
-                            || path.getFileName().toString().endsWith(".yml"))
+            paths.filter(path -> path.getFileName().toString().endsWith(YAML_EXTENSION)
+                            || path.getFileName().toString().endsWith(YML_EXTENSION))
                     .map(this::parseSingleDistributionPath)
                     .flatMap(config -> config.distributions().entrySet().stream())
                     .forEach(entry -> distributions.put(entry.getKey(), entry.getValue()));
 
             return new DistributionConfig(distributions);
         } catch (IOException exception) {
-            throw new ModuleComposerException("Unable to read " + file, exception);
+            throw new ModuleComposerException(UNABLE_TO_READ_MESSAGE + file, exception);
         }
     }
 
@@ -133,15 +155,11 @@ public final class DistributionLoader {
 
         try {
             Object parsed = new Yaml().load(Files.readString(path));
-
-            if (!(parsed instanceof Map<?, ?> root)) {
-                throw new ModuleComposerException("Invalid YAML root in " + path);
-            }
-
+            Map<?, ?> root = yamlRoot(parsed, path);
             NamedDistribution distribution = parseSingleDistributionFile(root);
             return new DistributionConfig(Map.of(distribution.name(), distribution.preset()));
         } catch (IOException exception) {
-            throw new ModuleComposerException("Unable to read " + path, exception);
+            throw new ModuleComposerException(UNABLE_TO_READ_MESSAGE + path, exception);
         }
     }
 
@@ -192,18 +210,9 @@ public final class DistributionLoader {
 
         String image = optionalString(metadata.get("image"));
         String baseImage = optionalString(metadata.get("baseImage"));
-        Integer hostPort = optionalInteger(
-                metadata.get("hostPort"),
-                "container.hostPort"
-        );
-        Integer containerPort = optionalInteger(
-                metadata.get("containerPort"),
-                "container.containerPort"
-        );
-        if (image == null
-                && baseImage == null
-                && hostPort == null
-                && containerPort == null) {
+        Integer hostPort = optionalContainerPort(metadata, "hostPort");
+        Integer containerPort = optionalContainerPort(metadata, "containerPort");
+        if (!hasContainerMetadata(image, baseImage, hostPort, containerPort)) {
             return null;
         }
 
@@ -213,6 +222,25 @@ public final class DistributionLoader {
                 hostPort,
                 containerPort
         );
+    }
+
+    private static Integer optionalContainerPort(
+            Map<?, ?> metadata,
+            String name
+    ) {
+        return optionalInteger(metadata.get(name), "container." + name);
+    }
+
+    private static boolean hasContainerMetadata(
+            String image,
+            String baseImage,
+            Integer hostPort,
+            Integer containerPort
+    ) {
+        return image != null
+                || baseImage != null
+                || hostPort != null
+                || containerPort != null;
     }
 
     private static Integer optionalInteger(Object value, String field) {
@@ -241,17 +269,17 @@ public final class DistributionLoader {
     }
 
     private static Path namedDistributionFile(Path directory, String distributionName) {
-        Path yaml = directory.resolve(distributionName + ".yaml");
+        Path yaml = directory.resolve(distributionName + YAML_EXTENSION);
         if (Files.exists(yaml)) {
             return yaml;
         }
 
-        return directory.resolve(distributionName + ".yml");
+        return directory.resolve(distributionName + YML_EXTENSION);
     }
 
     private Path defaultDistributionDirectory() {
         Path parent = file.getParent() == null ? Path.of(".") : file.getParent();
-        return parent.resolve("distributions");
+        return parent.resolve(DISTRIBUTIONS_KEY);
     }
 
     private record NamedDistribution(

@@ -17,6 +17,7 @@ springboot-demo/
 ## Single module
 
 ```bash
+./gradlew listModules
 ./gradlew explain -Pmodules=payment
 ./gradlew bundleRun -Pmodules=payment
 ```
@@ -43,6 +44,8 @@ Generated host runs on port `8080`.
 ## Enterprise distribution
 
 ```bash
+./gradlew listDistributions
+./gradlew explain -Pdistribution=enterprise
 ./gradlew bundleBuild -Pdistribution=enterprise
 ```
 

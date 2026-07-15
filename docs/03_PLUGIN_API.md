@@ -37,8 +37,8 @@ framework              = spring-boot
 generatedHostDirectory = build/module-composer/generated/combined-app
 outputJar              = build/module-composer/output/combined-app.jar
 distributionFile       = distributions.yml
-springBootVersion      = 3.5.7
-dependencyManagement   = 1.1.7
+springBootVersion      = plugin managed default
+dependencyManagement   = plugin managed default
 javaVersion            = 21
 ```
 
@@ -55,11 +55,13 @@ Application names must match `[A-Za-z0-9][A-Za-z0-9._-]*`. `-PapplicationName`
 has priority over a distribution YAML `applicationName`.
 
 If a distribution provides `artifact.fileName`, generated-host `bundleBuild`
-uses that file name while the default `outputJar` is still configured. If it
+uses that file name while the default `outputJar` file name is still configured.
+If it
 provides `container` metadata, generated-host `bundleBuild` writes `Dockerfile`
 and `docker-compose.yml` under
-`build/module-composer/output/containers/<applicationName>` while the default
-output directory is used.
+`build/module-composer/output/containers/<containerServiceName>`. The container
+service name is derived from `applicationName` and normalized for Docker compose
+service and directory names.
 If `container` metadata is absent, generated-host `bundleBuild` removes stale
 generated container files from the output directory.
 `container.baseImage` controls the generated Dockerfile `FROM` image and
@@ -140,10 +142,21 @@ Default task names are `bootRun`, `bootJar`, and `jar`.
 
 ## CLI
 
+Public root tasks:
+
+```text
+listModules
+listDistributions
+explain
+bundleRun
+bundleBuild
+```
+
 Without YAML:
 
 ```bash
 ./gradlew listModules
+./gradlew explain -Pmodules=payment,notification
 ./gradlew bundleRun -Pmodules=payment -Pport=9090
 ./gradlew bundleRun -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification
@@ -154,9 +167,15 @@ With YAML:
 
 ```bash
 ./gradlew listDistributions
+./gradlew explain -Pdistribution=enterprise
 ./gradlew bundleRun -Pdistribution=community
 ./gradlew bundleBuild -Pdistribution=enterprise -PexcludeModules=audit
 ```
+
+Generated-host execution also wires internal tasks such as
+`prepareGeneratedHost`, `runGeneratedHost`, `buildGeneratedHost`, and
+`copyGeneratedHostJar`. They are implementation details behind `bundleRun` and
+`bundleBuild`.
 
 `-Pmodules` and `-Pdistribution` are mutually exclusive.
 

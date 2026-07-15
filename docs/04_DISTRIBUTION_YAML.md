@@ -92,11 +92,13 @@ host port published by docker compose. `containerPort` is the container port
 used by docker compose and Dockerfile `EXPOSE`. Container metadata is reported
 by `explain` and `listDistributions`. For multi-module `bundleBuild`, any
 container metadata also generates container files under an
-application-specific output directory:
+application-specific output directory. The container service name is derived
+from `applicationName` and normalized for Docker compose service and directory
+names:
 
 ```text
-build/module-composer/output/containers/<applicationName>/Dockerfile
-build/module-composer/output/containers/<applicationName>/docker-compose.yml
+build/module-composer/output/containers/<containerServiceName>/Dockerfile
+build/module-composer/output/containers/<containerServiceName>/docker-compose.yml
 ```
 
 The generated compose file builds an image from the generated JAR and maps

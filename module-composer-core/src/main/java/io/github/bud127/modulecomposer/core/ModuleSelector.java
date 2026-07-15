@@ -7,8 +7,6 @@ import java.util.Set;
 
 public final class ModuleSelector {
 
-    public static final String DEFAULT_APPLICATION_NAME = "combined-app";
-
     private final ModuleRegistry registry;
     private final DistributionLoader distributionLoader;
     private final ProjectValidator projectValidator;
@@ -36,58 +34,113 @@ public final class ModuleSelector {
                 request.applicationName(),
                 "-PapplicationName"
         );
-        String applicationName = requestedApplicationName;
-        DistributionArtifact artifact = null;
-        DistributionContainer container = null;
 
-        if (!cliModules.isEmpty()
-                && distribution != null
-                && !distribution.isBlank()) {
+        validateSelectionSource(cliModules, distribution);
+        ResolvedSelection resolved = resolveBaseSelection(
+                cliModules,
+                distribution,
+                requestedApplicationName
+        );
+        LinkedHashSet<String> selected = applyOverrides(
+                resolved.moduleNames(),
+                includes,
+                excludes
+        );
+        List<ModuleRegistration> modules = resolveModules(selected);
+
+        return new ModuleSelection(
+                List.copyOf(modules),
+                distribution,
+                resolved.applicationName() == null
+                        ? ModuleComposerDefaults.DEFAULT_APPLICATION_NAME
+                        : resolved.applicationName(),
+                resolved.artifact(),
+                resolved.container(),
+                request.runtimeOptions(),
+                resolved.mode()
+        );
+    }
+
+    private void validateSelectionSource(
+            List<String> cliModules,
+            String distribution
+    ) {
+        if (!cliModules.isEmpty() && hasText(distribution)) {
             throw new ModuleComposerException(
                     "Module selection is ambiguous. Use either -Pmodules or -Pdistribution, not both."
             );
         }
+    }
 
-        LinkedHashSet<String> selected = new LinkedHashSet<>();
-        SelectionMode mode;
-
+    private ResolvedSelection resolveBaseSelection(
+            List<String> cliModules,
+            String distribution,
+            String requestedApplicationName
+    ) {
         if (!cliModules.isEmpty()) {
-            selected.addAll(cliModules);
-            mode = SelectionMode.CLI;
-        } else if (distribution != null && !distribution.isBlank()) {
-            DistributionConfig config = distributionLoader.loadRequired(distribution);
-            DistributionPreset preset =
-                    config.distributions().get(distribution);
-
-            if (preset == null) {
-                throw new ModuleComposerException(
-                        "Unknown distribution '" + distribution +
-                                "'. Available distributions: " +
-                                config.distributions().keySet()
-                );
-            }
-
-            selected.addAll(normalizeAll(preset.modules()));
-            if (applicationName == null) {
-                applicationName = normalizeApplicationName(
-                        preset.applicationName(),
-                        "distribution '" + distribution + "' applicationName"
-                );
-            }
-            artifact = normalizeArtifact(preset.artifact(), distribution);
-            container = normalizeContainer(preset.container(), distribution);
-            mode = SelectionMode.DISTRIBUTION;
-        } else {
-            throw new ModuleComposerException("""
-                    No module selection was provided.
-
-                    Examples:
-                      ./gradlew bundleRun -Pmodules=payment
-                      ./gradlew bundleRun -Pmodules=payment,notification
-                      ./gradlew bundleRun -Pdistribution=community
-                    """);
+            return new ResolvedSelection(
+                    new LinkedHashSet<>(cliModules),
+                    requestedApplicationName,
+                    null,
+                    null,
+                    SelectionMode.CLI
+            );
         }
 
+        if (hasText(distribution)) {
+            return resolveDistributionSelection(
+                    distribution,
+                    requestedApplicationName
+            );
+        }
+
+        throw new ModuleComposerException("""
+                No module selection was provided.
+
+                Examples:
+                  ./gradlew bundleRun -Pmodules=payment
+                  ./gradlew bundleRun -Pmodules=payment,notification
+                  ./gradlew bundleRun -Pdistribution=community
+                """);
+    }
+
+    private ResolvedSelection resolveDistributionSelection(
+            String distribution,
+            String requestedApplicationName
+    ) {
+        DistributionConfig config = distributionLoader.loadRequired(distribution);
+        DistributionPreset preset = config.distributions().get(distribution);
+
+        if (preset == null) {
+            throw new ModuleComposerException(
+                    "Unknown distribution '" + distribution +
+                            "'. Available distributions: " +
+                            config.distributions().keySet()
+            );
+        }
+
+        String applicationName = requestedApplicationName == null
+                ? normalizeApplicationName(
+                        preset.applicationName(),
+                        "distribution '" + distribution + "' applicationName"
+                )
+                : requestedApplicationName;
+
+        return new ResolvedSelection(
+                new LinkedHashSet<>(normalizeAll(preset.modules())),
+                applicationName,
+                normalizeArtifact(preset.artifact(), distribution),
+                normalizeContainer(preset.container(), distribution),
+                SelectionMode.DISTRIBUTION
+        );
+    }
+
+    private static LinkedHashSet<String> applyOverrides(
+            LinkedHashSet<String> baseSelection,
+            List<String> includes,
+            Set<String> excludes
+    ) {
+        LinkedHashSet<String> selected = new LinkedHashSet<>(baseSelection);
         selected.addAll(includes);
         selected.removeAll(excludes);
 
@@ -95,39 +148,38 @@ public final class ModuleSelector {
             throw new ModuleComposerException("No modules remain after overrides.");
         }
 
+        return selected;
+    }
+
+    private List<ModuleRegistration> resolveModules(
+            LinkedHashSet<String> selected
+    ) {
         List<ModuleRegistration> modules = new ArrayList<>();
         for (String name : selected) {
-            ModuleRegistration definition = registry.get(normalize(name));
+            modules.add(resolveModule(name));
+        }
+        return modules;
+    }
 
-            if (definition == null) {
-                throw new ModuleComposerException(
-                        "Unknown module '" + name +
-                                "'. Available modules: " +
-                                registry.modules().keySet()
-                );
-            }
+    private ModuleRegistration resolveModule(String name) {
+        ModuleRegistration definition = registry.get(normalize(name));
 
-            if (!projectValidator.exists(definition.projectPath())) {
-                throw new ModuleComposerException(
-                        "Gradle project not found for module '" + name +
-                                "': " + definition.projectPath()
-                );
-            }
-
-            modules.add(definition);
+        if (definition == null) {
+            throw new ModuleComposerException(
+                    "Unknown module '" + name +
+                            "'. Available modules: " +
+                            registry.modules().keySet()
+            );
         }
 
-        return new ModuleSelection(
-                List.copyOf(modules),
-                distribution,
-                applicationName == null
-                        ? DEFAULT_APPLICATION_NAME
-                        : applicationName,
-                artifact,
-                container,
-                request.runtimeOptions(),
-                mode
-        );
+        if (!projectValidator.exists(definition.projectPath())) {
+            throw new ModuleComposerException(
+                    "Gradle project not found for module '" + name +
+                            "': " + definition.projectPath()
+            );
+        }
+
+        return definition;
     }
 
     private List<String> normalizeAll(List<String> values) {
@@ -144,7 +196,13 @@ public final class ModuleSelector {
     }
 
     private String normalize(String name) {
-        return name.trim().replaceFirst("^module-", "");
+        String normalized = name.trim();
+        if (normalized.startsWith(ModuleComposerDefaults.MODULE_PROJECT_PREFIX)) {
+            return normalized.substring(
+                    ModuleComposerDefaults.MODULE_PROJECT_PREFIX.length()
+            );
+        }
+        return normalized;
     }
 
     private static String normalizeApplicationName(
@@ -160,7 +218,7 @@ public final class ModuleSelector {
             return null;
         }
 
-        if (!normalized.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+        if (!isApplicationName(normalized)) {
             throw new ModuleComposerException(
                     "Invalid application name '" + value + "' from " + source +
                             ". Use letters, numbers, dots, underscores, and dashes; start with a letter or number."
@@ -168,6 +226,36 @@ public final class ModuleSelector {
         }
 
         return normalized;
+    }
+
+    private static boolean isApplicationName(String value) {
+        if (!isAsciiLetterOrDigit(value.charAt(0))) {
+            return false;
+        }
+
+        for (int index = 1; index < value.length(); index++) {
+            if (!isApplicationNamePart(value.charAt(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isApplicationNamePart(char value) {
+        return isAsciiLetterOrDigit(value)
+                || value == '.'
+                || value == '_'
+                || value == '-';
+    }
+
+    private static boolean isAsciiLetterOrDigit(char value) {
+        return value >= 'a' && value <= 'z'
+                || value >= 'A' && value <= 'Z'
+                || value >= '0' && value <= '9';
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static DistributionArtifact normalizeArtifact(
@@ -213,23 +301,30 @@ public final class ModuleSelector {
                 distribution
         );
 
-        String image = container.image() == null ? null : container.image().trim();
-        String baseImage = container.baseImage() == null
-                ? null
-                : container.baseImage().trim();
-        if ((image == null || image.isBlank())
-                && (baseImage == null || baseImage.isBlank())
+        String image = normalizeOptionalText(container.image());
+        String baseImage = normalizeOptionalText(container.baseImage());
+        if (image == null
+                && baseImage == null
                 && hostPort == null
                 && containerPort == null) {
             return null;
         }
 
         return new DistributionContainer(
-                image == null || image.isBlank() ? null : image,
-                baseImage == null || baseImage.isBlank() ? null : baseImage,
+                image,
+                baseImage,
                 hostPort,
                 containerPort
         );
+    }
+
+    private static String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        return normalized.isBlank() ? null : normalized;
     }
 
     private static Integer normalizePort(
@@ -250,5 +345,14 @@ public final class ModuleSelector {
 
     public interface ProjectValidator {
         boolean exists(String projectPath);
+    }
+
+    private record ResolvedSelection(
+            LinkedHashSet<String> moduleNames,
+            String applicationName,
+            DistributionArtifact artifact,
+            DistributionContainer container,
+            SelectionMode mode
+    ) {
     }
 }

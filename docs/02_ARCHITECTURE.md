@@ -182,8 +182,9 @@ With the default application name, this becomes
 When a distribution provides `artifact.fileName`, generated host mode copies to
 that file name instead. When a distribution provides `container` metadata,
 `bundleBuild` writes `Dockerfile` and `docker-compose.yml` under
-`build/module-composer/output/containers/<applicationName>` while the default
-output directory is used.
+`build/module-composer/output/containers/<containerServiceName>`. The container
+service name is derived from `applicationName` and normalized for Docker compose
+service and directory names.
 Without `container` metadata, generated container files are not kept in the
 output directory.
 The generated Dockerfile uses `container.baseImage` or defaults to

@@ -19,10 +19,11 @@ class CoreArchitectureTest {
     void registryRejectsDuplicateModuleNames() {
         ModuleRegistry registry = new ModuleRegistry();
         registry.register(module("payment", ":module-payment"));
+        ModuleRegistration duplicateModule = module("payment", ":other-payment");
 
         ModuleComposerException exception = assertThrows(
                 ModuleComposerException.class,
-                () -> registry.register(module("payment", ":other-payment"))
+                () -> registry.register(duplicateModule)
         );
 
         assertTrue(exception.getMessage().contains("Duplicate Module Composer module name 'payment'"));
@@ -282,6 +283,10 @@ class CoreArchitectureTest {
                 CompositionPlan plan,
                 GeneratedHostContext context
         ) {
+            throw new UnsupportedOperationException(
+                    "Test adapter does not generate host files for " +
+                            plan.framework() + "/" + context.applicationName() + "."
+            );
         }
 
         @Override
@@ -327,7 +332,10 @@ class CoreArchitectureTest {
                 FrameworkAdapter frameworkAdapter,
                 ModuleRegistration module
         ) {
-            return BuildInvocation.of("run", "run-" + module.name());
+            return BuildInvocation.of(
+                    frameworkAdapter.frameworkId() + "-run",
+                    "run-" + module.name()
+            );
         }
 
         @Override
@@ -335,7 +343,10 @@ class CoreArchitectureTest {
                 FrameworkAdapter frameworkAdapter,
                 ModuleRegistration module
         ) {
-            return BuildInvocation.of("build", "build-" + module.name());
+            return BuildInvocation.of(
+                    frameworkAdapter.frameworkId() + "-build",
+                    "build-" + module.name()
+            );
         }
 
         @Override
@@ -345,17 +356,26 @@ class CoreArchitectureTest {
 
         @Override
         public BuildInvocation projectArtifact(String projectReference) {
-            return BuildInvocation.of("artifact", "package-common");
+            return BuildInvocation.of(
+                    "artifact",
+                    "package-" + projectReference.substring(1)
+            );
         }
 
         @Override
         public BuildInvocation generatedRun(FrameworkAdapter frameworkAdapter) {
-            return new BuildInvocation("generated-run", List.of("prepare", "run-generated"));
+            return new BuildInvocation(
+                    frameworkAdapter.frameworkId() + "-generated-run",
+                    List.of("prepare", "run-generated")
+            );
         }
 
         @Override
         public BuildInvocation generatedBuild(FrameworkAdapter frameworkAdapter) {
-            return new BuildInvocation("generated-build", List.of("prepare", "build-generated"));
+            return new BuildInvocation(
+                    frameworkAdapter.frameworkId() + "-generated-build",
+                    List.of("prepare", "build-generated")
+            );
         }
     }
 }

@@ -10,9 +10,26 @@ java {
 }
 
 dependencies {
-    api("org.yaml:snakeyaml:2.4")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    api(libs.snakeyaml)
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.processResources {
+    val springBootVersion = libs.versions.springBoot.get()
+    val dependencyManagementVersion = libs.versions.dependencyManagement.get()
+
+    inputs.property("springBootVersion", springBootVersion)
+    inputs.property("dependencyManagementVersion", dependencyManagementVersion)
+
+    filesMatching("module-composer-defaults.properties") {
+        expand(
+            mapOf(
+                "springBootVersion" to springBootVersion,
+                "dependencyManagementVersion" to dependencyManagementVersion
+            )
+        )
+    }
 }
 
 tasks.test {

@@ -142,12 +142,14 @@ build/module-composer/output/combined-app.jar
 
 `-PapplicationName` has priority over distribution YAML `applicationName`.
 Application names must match `[A-Za-z0-9][A-Za-z0-9._-]*`.
-If `artifact.fileName` is provided and the default output location is used,
+If `artifact.fileName` is provided and the default output file name is used,
 multi-module `bundleBuild` writes that file name instead of
 `<applicationName>.jar`.
 If `container` metadata is provided, multi-module `bundleBuild` writes a
 Dockerfile and `docker-compose.yml` under
-`build/module-composer/output/containers/<applicationName>`.
+`build/module-composer/output/containers/<containerServiceName>`.
+The container service name is derived from `applicationName` and normalized for
+Docker compose service and directory names.
 The generated Dockerfile must use `container.baseImage` when provided and
 default to `eclipse-temurin:21-jre` otherwise.
 The generated Dockerfile must expose `container.containerPort`, and generated
@@ -155,11 +157,21 @@ docker compose must publish `container.hostPort:container.containerPort`.
 
 ## MVP Commands
 
-- `bundleRun`
-- `bundleBuild`
-- `explain`
 - `listModules`
 - `listDistributions`
+- `explain`
+- `bundleRun`
+- `bundleBuild`
+
+Generated-host mode may create internal tasks:
+
+- `prepareGeneratedHost`
+- `runGeneratedHost`
+- `buildGeneratedHost`
+- `copyGeneratedHostJar`
+
+Those internal tasks are implementation details behind `bundleRun` and
+`bundleBuild`.
 
 ## Acceptance Criteria
 

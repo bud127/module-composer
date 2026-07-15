@@ -47,8 +47,6 @@ Konfigurasi lengkap yang umum dipakai:
 moduleComposer {
     distributionFile.set("distributions")
 
-    springBootVersion.set("3.5.7")
-    dependencyManagementVersion.set("1.1.7")
     javaVersion.set(21)
 
     commonProjectPaths.set(
@@ -70,10 +68,14 @@ framework              = spring-boot
 distributionFile       = distributions.yml
 generatedHostDirectory = build/module-composer/generated/combined-app
 outputJar              = build/module-composer/output/combined-app.jar
-springBootVersion      = 3.5.7
-dependencyManagement   = 1.1.7
+springBootVersion      = plugin managed default
+dependencyManagement   = plugin managed default
 javaVersion            = 21
 ```
+
+Jika perlu override versi Spring Boot atau dependency-management plugin, ambil
+nilainya dari source terpusat seperti version catalog atau Gradle property,
+bukan literal di banyak build script.
 
 Jika `applicationName` diberikan dari CLI atau YAML dan lokasi default masih
 dipakai, output menjadi:
@@ -120,6 +122,16 @@ lebih dari satu module digabungkan.
 
 ## Command Discovery
 
+Task publik dari root plugin:
+
+```text
+listModules
+listDistributions
+explain
+bundleRun
+bundleBuild
+```
+
 Lihat module yang tersedia:
 
 ```bash
@@ -138,6 +150,10 @@ Lihat rencana eksekusi tanpa menjalankan build:
 ./gradlew explain -Pmodules=payment,notification
 ./gradlew explain -Pdistribution=enterprise
 ```
+
+Task internal/generated seperti `prepareGeneratedHost`, `runGeneratedHost`,
+`buildGeneratedHost`, dan `copyGeneratedHostJar` dibuat saat diperlukan untuk
+multi-module mode. Biasanya task ini tidak dipanggil langsung.
 
 ## CLI Tanpa YAML
 
@@ -274,19 +290,22 @@ build/module-composer/output/application.jar
 Untuk single distribution file, `name` dipakai sebagai default
 `applicationName` jika `applicationName` tidak diisi.
 
-`artifact.fileName` optional. Jika diisi dan `moduleComposer.outputJar` masih
-memakai default, nama final JAR mengikuti nilai itu.
+`artifact.fileName` optional. Jika diisi dan nama file
+`moduleComposer.outputJar` masih memakai default `combined-app.jar`, nama final
+JAR mengikuti nilai itu.
 
 `container.image`, `container.baseImage`, `container.hostPort`, dan
 `container.containerPort` optional. `hostPort` adalah port host yang dipublish
 oleh docker compose. `containerPort` adalah port container yang dipakai docker
 compose dan Dockerfile `EXPOSE`. Metadata container ditampilkan oleh `explain`
 dan `listDistributions`. Untuk multi-module `bundleBuild`, metadata container
-juga menghasilkan file container di folder output yang unik per aplikasi:
+juga menghasilkan file container di folder output yang unik per aplikasi. Nama
+service container diturunkan dari `applicationName` dan dinormalisasi untuk
+Docker compose service dan nama folder:
 
 ```text
-build/module-composer/output/containers/<applicationName>/Dockerfile
-build/module-composer/output/containers/<applicationName>/docker-compose.yml
+build/module-composer/output/containers/<containerServiceName>/Dockerfile
+build/module-composer/output/containers/<containerServiceName>/docker-compose.yml
 ```
 
 Compose file yang dihasilkan akan build image dari JAR final dan map

@@ -1,14 +1,9 @@
 package io.github.bud127.modulecomposer.plugin;
 
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
-
-import javax.inject.Inject;
-import java.util.List;
 
 /**
  * Root project extension for configuring Module Composer.
@@ -77,27 +72,4 @@ public abstract class ModuleComposerExtension {
      * @return shared configuration class names
      */
     public abstract ListProperty<String> getCommonConfigurationClasses();
-
-    /**
-     * Creates the extension and configures default values.
-     *
-     * @param objects Gradle object factory
-     * @param layout Gradle project layout
-     */
-    @Inject
-    public ModuleComposerExtension(ObjectFactory objects, ProjectLayout layout) {
-        getDistributionFile().convention("distributions.yml");
-        getFramework().convention("spring-boot");
-        getGeneratedHostDirectory().convention(
-                layout.getBuildDirectory().dir("module-composer/generated/combined-app")
-        );
-        getOutputJar().convention(
-                layout.getBuildDirectory().file("module-composer/output/combined-app.jar")
-        );
-        getSpringBootVersion().convention("3.5.7");
-        getDependencyManagementVersion().convention("1.1.7");
-        getJavaVersion().convention(21);
-        getCommonProjectPaths().convention(List.of());
-        getCommonConfigurationClasses().convention(List.of());
-    }
 }
