@@ -1,0 +1,17 @@
+name: community
+version: 0.1.0
+
+applicationName: community-service
+
+modules:
+  - payment
+  - notification
+
+artifact:
+  fileName: community-service.jar
+
+container:
+  image: bud127/community
+  baseImage: eclipse-temurin:21-jre
+  hostPort: 8081
+  containerPort: 8080

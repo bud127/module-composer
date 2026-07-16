@@ -1,0 +1,18 @@
+name: enterprise
+version: 0.1.0
+
+applicationName: enterprise-service
+
+modules:
+  - payment
+  - notification
+  - audit
+
+artifact:
+  fileName: application.jar
+
+container:
+  image: bud127/enterprise
+  baseImage: eclipse-temurin:21-jre
+  hostPort: 8080
+  containerPort: 8080
