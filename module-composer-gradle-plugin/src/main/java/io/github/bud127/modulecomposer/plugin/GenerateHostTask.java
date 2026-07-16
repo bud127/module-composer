@@ -1,29 +1,27 @@
 package io.github.bud127.modulecomposer.plugin;
 
-import io.github.bud127.modulecomposer.core.CompositionPlan;
-import io.github.bud127.modulecomposer.core.FrameworkAdapter;
-import io.github.bud127.modulecomposer.core.GeneratedHostContext;
+import io.github.bud127.modulecomposer.core.*;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Generates the temporary application host used for composed multi-module runs
  * and builds.
  */
 public abstract class GenerateHostTask extends DefaultTask {
-
-    private FrameworkAdapter adapter;
-    private CompositionPlan plan;
 
     /**
      * Directory where the generated host project is written.
@@ -89,43 +87,60 @@ public abstract class GenerateHostTask extends DefaultTask {
     @Input
     public abstract MapProperty<String, String> getFrameworkOptions();
 
-    /**
-     * Framework adapter responsible for generating the host project.
-     *
-     * @return selected framework adapter
-     */
-    @Internal
-    public FrameworkAdapter getAdapter() {
-        return adapter;
-    }
+    @Input
+    public abstract Property<String> getAdapterClassName();
 
-    /**
-     * Sets the framework adapter used by this task.
-     *
-     * @param adapter selected framework adapter
-     */
-    public void setAdapter(FrameworkAdapter adapter) {
-        this.adapter = adapter;
-    }
+    @Input
+    public abstract Property<String> getFramework();
 
-    /**
-     * Composition plan used as input for host generation.
-     *
-     * @return composition plan
-     */
-    @Internal
-    public CompositionPlan getPlan() {
-        return plan;
-    }
+    @Input
+    public abstract Property<String> getSelectionMode();
 
-    /**
-     * Sets the composition plan used by this task.
-     *
-     * @param plan composition plan
-     */
-    public void setPlan(CompositionPlan plan) {
-        this.plan = plan;
-    }
+    @Input
+    public abstract ListProperty<String> getModuleProjectPaths();
+
+    @Input
+    public abstract ListProperty<String> getModuleConfigurationClasses();
+
+    @Input
+    public abstract ListProperty<String> getStandaloneRunTasks();
+
+    @Input
+    public abstract ListProperty<String> getStandaloneBuildTasks();
+
+    @Input
+    public abstract ListProperty<String> getPlainJarTasks();
+
+    @Input
+    @Optional
+    public abstract Property<Integer> getRuntimePort();
+
+    @Input
+    @Optional
+    public abstract Property<String> getRuntimeProfile();
+
+    @Input
+    public abstract Property<Boolean> getRuntimeDebug();
+
+    @Input
+    @Optional
+    public abstract Property<String> getArtifactFileName();
+
+    @Input
+    @Optional
+    public abstract Property<String> getContainerImage();
+
+    @Input
+    @Optional
+    public abstract Property<String> getContainerBaseImage();
+
+    @Input
+    @Optional
+    public abstract Property<Integer> getContainerHostPort();
+
+    @Input
+    @Optional
+    public abstract Property<Integer> getContainerPort();
 
     /**
      * Generates the host project by delegating to the selected framework adapter.
@@ -135,8 +150,9 @@ public abstract class GenerateHostTask extends DefaultTask {
     @TaskAction
     public void generate() throws IOException {
         Path host = getHostDirectory().get().getAsFile().toPath();
+        FrameworkAdapter adapter = instantiateAdapter();
         adapter.generateHost(
-                plan,
+                compositionPlan(),
                 new GeneratedHostContext(
                         host,
                         getDependencyJarPaths().get(),
@@ -150,5 +166,84 @@ public abstract class GenerateHostTask extends DefaultTask {
         );
 
         getLogger().lifecycle("Generated combined host: {}", host);
+    }
+
+    private FrameworkAdapter instantiateAdapter() {
+        String className = getAdapterClassName().get();
+        try {
+            return (FrameworkAdapter) Class.forName(className)
+                    .getDeclaredConstructor()
+                    .newInstance();
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(
+                    "Unable to create framework adapter " + className,
+                    exception
+            );
+        }
+    }
+
+    private CompositionPlan compositionPlan() {
+        return new CompositionPlan(
+                getFramework().get(),
+                ExecutionMode.GENERATED_HOST,
+                SelectionMode.valueOf(getSelectionMode().get()),
+                moduleRegistrations(),
+                runtimeOptions(),
+                blankToNull(getDistribution().getOrElse("")),
+                getApplicationName().get(),
+                distributionArtifact(),
+                distributionContainer()
+        );
+    }
+
+    private List<ModuleRegistration> moduleRegistrations() {
+        List<String> names = getModuleNames().get();
+        List<String> projectPaths = getModuleProjectPaths().get();
+        List<String> configurations = getModuleConfigurationClasses().get();
+        List<String> runTasks = getStandaloneRunTasks().get();
+        List<String> buildTasks = getStandaloneBuildTasks().get();
+        List<String> jarTasks = getPlainJarTasks().get();
+        List<ModuleRegistration> modules = new ArrayList<>();
+        for (int index = 0; index < names.size(); index++) {
+            modules.add(new ModuleRegistration(
+                    names.get(index),
+                    projectPaths.get(index),
+                    configurations.get(index),
+                    runTasks.get(index),
+                    buildTasks.get(index),
+                    jarTasks.get(index)
+            ));
+        }
+        return modules;
+    }
+
+    private RuntimeOptions runtimeOptions() {
+        return new RuntimeOptions(
+                getRuntimePort().getOrNull(),
+                getRuntimeProfile().getOrElse(""),
+                getRuntimeDebug().get(),
+                List.of(),
+                Map.of()
+        );
+    }
+
+    private DistributionArtifact distributionArtifact() {
+        String fileName = getArtifactFileName().getOrNull();
+        return fileName == null ? null : new DistributionArtifact(fileName);
+    }
+
+    private DistributionContainer distributionContainer() {
+        String image = getContainerImage().getOrNull();
+        String baseImage = getContainerBaseImage().getOrNull();
+        Integer hostPort = getContainerHostPort().getOrNull();
+        Integer containerPort = getContainerPort().getOrNull();
+        if (image == null && baseImage == null && hostPort == null && containerPort == null) {
+            return null;
+        }
+        return new DistributionContainer(image, baseImage, hostPort, containerPort);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

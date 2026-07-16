@@ -12,8 +12,6 @@ import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,13 +74,17 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 "Builds one module directly or a generated combined JAR."
         );
 
-        TaskProvider<Task> explain = registerTask(
+        TaskProvider<ExplainModuleComposerTask> explain = registerExplainTask(
                 project,
-                EXPLAIN_TASK,
-                "Explains the selected execution and build plan."
+                EXPLAIN_TASK
         );
 
-        registerDiscoveryTasks(project, extension, registry);
+        DiscoveryTasks discoveryTasks =
+                registerDiscoveryTasks(project);
+
+        project.getGradle().projectsEvaluated(gradle ->
+                configureDiscoveryTasks(project, extension, registry, discoveryTasks)
+        );
 
         project.getGradle().projectsEvaluated(gradle -> {
             if (!selectionTaskRequested(project)) {
@@ -103,9 +105,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             );
 
             explain.configure(task ->
-                    task.doLast(ignored ->
-                            explainPlan(project, extension, adapter, buildTool, plan)
-                    )
+                    configureExplainTask(project, task, extension, adapter, buildTool, plan)
             );
 
             if (plan.isStandalone()) {
@@ -197,133 +197,169 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         });
     }
 
-    private void registerDiscoveryTasks(
+    private TaskProvider<ExplainModuleComposerTask> registerExplainTask(
+            Project project,
+            String name
+    ) {
+        return project.getTasks().register(name, ExplainModuleComposerTask.class, task -> {
+            task.setGroup(TASK_GROUP);
+            task.setDescription("Explains the selected execution and build plan.");
+        });
+    }
+
+    private static void configureExplainTask(
+            Project project,
+            ExplainModuleComposerTask task,
+            ModuleComposerExtension extension,
+            FrameworkAdapter adapter,
+            GradleBuildToolAdapter buildTool,
+            CompositionPlan plan
+    ) {
+        task.getFramework().set(plan.framework());
+        task.getBuildTool().set(buildTool.buildToolId());
+        task.getExecutionMode().set(plan.executionMode().name());
+        task.getAdapter().set(adapter.getClass().getSimpleName());
+        task.getSelectionMode().set(plan.selectionMode().name());
+        if (plan.distribution() != null) {
+            task.getDistribution().set(plan.distribution());
+        }
+        task.getApplicationName().set(plan.applicationName());
+        task.getValidation().set(validationMode(project));
+        configureExplainArtifact(task, plan);
+        configureExplainContainer(task, plan);
+        task.getRuntimePort().set(String.valueOf(runtimePort(plan)));
+        task.getModuleNames().set(plan.moduleNames());
+        task.getStandalone().set(plan.isStandalone());
+        configureExplainExecution(task, extension, adapter, buildTool, plan);
+    }
+
+    private static void configureExplainArtifact(
+            ExplainModuleComposerTask task,
+            CompositionPlan plan
+    ) {
+        if (plan.artifact() != null && plan.artifact().fileName() != null) {
+            task.getArtifactFileName().set(plan.artifact().fileName());
+        }
+    }
+
+    private static void configureExplainContainer(
+            ExplainModuleComposerTask task,
+            CompositionPlan plan
+    ) {
+        if (plan.container() == null) {
+            return;
+        }
+
+        int hostPort = containerHostPort(plan.container());
+        int containerPort = containerContainerPort(plan.container());
+        task.getContainerSummary().set(
+                containerImage(plan.container()) + ":" + hostPort + "->" + containerPort
+        );
+    }
+
+    private static void configureExplainExecution(
+            ExplainModuleComposerTask task,
+            ModuleComposerExtension extension,
+            FrameworkAdapter adapter,
+            GradleBuildToolAdapter buildTool,
+            CompositionPlan plan
+    ) {
+        if (plan.isStandalone()) {
+            ModuleRegistration module = plan.modules().get(0);
+            task.getStandaloneRunTask().set(
+                    buildTool.standaloneRun(adapter, module).displayName()
+            );
+            task.getStandaloneBuildTask().set(
+                    buildTool.standaloneBuild(adapter, module).displayName()
+            );
+            return;
+        }
+
+        task.getGeneratedHostDirectory().set(
+                generatedHostDirectory(extension, plan).getPath()
+        );
+        task.getBuildOutput().set(outputJar(extension, plan).getPath());
+    }
+
+    private DiscoveryTasks registerDiscoveryTasks(
+            Project project
+    ) {
+        return new DiscoveryTasks(
+                registerListModulesTask(project),
+                registerListDistributionsTask(project)
+        );
+    }
+
+    private TaskProvider<ListModulesTask> registerListModulesTask(Project project) {
+        return project.getTasks().register(
+                LIST_MODULES_TASK,
+                ListModulesTask.class,
+                task -> task.setGroup(TASK_GROUP)
+        );
+    }
+
+    private TaskProvider<ListDistributionsTask> registerListDistributionsTask(
+            Project project
+    ) {
+        return project.getTasks().register(
+                LIST_DISTRIBUTIONS_TASK,
+                ListDistributionsTask.class,
+                task -> task.setGroup(TASK_GROUP)
+        );
+    }
+
+    private static void configureDiscoveryTasks(
             Project project,
             ModuleComposerExtension extension,
-            ModuleRegistry registry
+            ModuleRegistry registry,
+            DiscoveryTasks discoveryTasks
     ) {
-        registerListModulesTask(project, registry);
-        registerListDistributionsTask(project, extension);
-    }
-
-    private void registerListModulesTask(
-            Project project,
-            ModuleRegistry registry
-    ) {
-        project.getTasks().register(LIST_MODULES_TASK, task -> {
-            task.setGroup(TASK_GROUP);
-            task.doLast(ignored -> {
-                project.getLogger().lifecycle("Available modules:");
-                if (registry.all().isEmpty()) {
-                    project.getLogger().lifecycle("  (none registered)");
-                    return;
-                }
-
-                registry.all().forEach(module -> logModule(project, module));
-            });
-        });
-    }
-
-    private void registerListDistributionsTask(
-            Project project,
-            ModuleComposerExtension extension
-    ) {
-        project.getTasks().register(LIST_DISTRIBUTIONS_TASK, task -> {
-            task.setGroup(TASK_GROUP);
-            task.doLast(ignored -> {
-                DistributionLoader loader =
-                        new DistributionLoader(distributionPath(project, extension));
-
-                if (!loader.exists()) {
-                    project.getLogger().lifecycle(
-                            "No {} file found.",
-                            extension.getDistributionFile().get()
-                    );
-                    project.getLogger().lifecycle(
-                            "Distribution presets are optional."
-                    );
-                    return;
-                }
-
-                DistributionConfig config = loader.loadRequired();
-
-                project.getLogger().lifecycle("Available distributions:");
-                config.distributions().forEach(
-                        (name, preset) -> logDistribution(project, name, preset)
-                );
-            });
-        });
-    }
-
-    private static void logModule(Project project, ModuleRegistration module) {
-        project.getLogger().lifecycle(ITEM_LOG_FORMAT, module.name());
-        project.getLogger().lifecycle(
-                "      project: {}",
-                module.projectPath()
+        discoveryTasks.listModules().configure(task ->
+                task.getModuleDescriptions().set(
+                        registry.all().stream()
+                                .map(ModuleComposerPlugin::moduleDescription)
+                                .toList()
+                )
         );
-        project.getLogger().lifecycle(
-                "      configuration: {}",
-                module.configurationClass()
+        discoveryTasks.listDistributions().configure(task ->
+                configureListDistributionsTask(project, extension, task)
         );
     }
 
-    private static void logDistribution(
-            Project project,
-            String name,
-            DistributionPreset preset
-    ) {
-        logDistributionHeader(project, name, preset);
-        logDistributionArtifact(project, preset);
-        logDistributionContainer(project, preset);
+    private static String moduleDescription(ModuleRegistration module) {
+        return ITEM_LOG_FORMAT.replace("{}", module.name()) + System.lineSeparator() +
+                "      project: " + module.projectPath() + System.lineSeparator() +
+                "      configuration: " + module.configurationClass();
     }
 
-    private static void logDistributionHeader(
+    private static void configureListDistributionsTask(
             Project project,
-            String name,
-            DistributionPreset preset
+            ModuleComposerExtension extension,
+            ListDistributionsTask task
     ) {
-        if (preset.applicationName() == null) {
-            project.getLogger().lifecycle(ITEM_LOG_FORMAT, name);
-            return;
+        Path distributionPath = distributionPath(project, extension);
+        task.getDistributionPath().set(distributionPath.toString());
+        task.getDistributionFileName().set(extension.getDistributionFile().get());
+        configureDistributionSources(project, distributionPath, task);
+    }
+
+    private static void configureDistributionSources(
+            Project project,
+            Path distributionPath,
+            ListDistributionsTask task
+    ) {
+        File configured = distributionPath.toFile();
+        if (configured.exists()) {
+            task.getDistributionSources().from(configured);
         }
 
-        project.getLogger().lifecycle(
-                "  + {} (application: {})",
-                name,
-                preset.applicationName()
-        );
-    }
-
-    private static void logDistributionArtifact(
-            Project project,
-            DistributionPreset preset
-    ) {
-        if (preset.artifact() == null || preset.artifact().fileName() == null) {
-            return;
+        Path parent = distributionPath.getParent() == null
+                ? Path.of(".")
+                : distributionPath.getParent();
+        File defaultDirectory = parent.resolve("distributions").toFile();
+        if (defaultDirectory.isDirectory()) {
+            task.getDistributionSources().from(project.fileTree(defaultDirectory));
         }
-
-        project.getLogger().lifecycle(
-                "      artifact: {}",
-                preset.artifact().fileName()
-        );
-    }
-
-    private static void logDistributionContainer(
-            Project project,
-            DistributionPreset preset
-    ) {
-        if (preset.container() == null) {
-            return;
-        }
-
-        int hostPort = containerHostPort(preset.container());
-        int containerPort = containerContainerPort(preset.container());
-        project.getLogger().lifecycle(
-                "      container: {}:{}->{}",
-                containerImage(preset.container()),
-                hostPort,
-                containerPort
-        );
     }
 
     private void configureStandalone(
@@ -393,7 +429,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 prepare,
                 false
         );
-        TaskProvider<Task> copyJar = registerCopyGeneratedHostJar(
+        TaskProvider<CopyGeneratedHostJarTask> copyJar = registerCopyGeneratedHostJar(
                 root,
                 extension,
                 adapter,
@@ -506,15 +542,40 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         task.setGroup(TASK_GROUP);
         task.dependsOn(validationTasks);
         task.dependsOn(inputs.jarTasks());
-        task.setAdapter(adapter);
-        task.setPlan(plan);
+        task.getAdapterClassName().set(adapter.getClass().getName());
+        task.getFramework().set(plan.framework());
+        task.getSelectionMode().set(plan.selectionMode().name());
         task.getHostDirectory().set(hostDirectory);
         inputs.jarPaths().forEach(task.getDependencyJarPaths()::add);
         task.getConfigurationClasses().set(inputs.configurationClasses());
         task.getModuleNames().set(plan.moduleNames());
+        task.getModuleProjectPaths().set(
+                plan.modules().stream().map(ModuleRegistration::projectPath).toList()
+        );
+        task.getModuleConfigurationClasses().set(
+                plan.modules().stream().map(ModuleRegistration::configurationClass).toList()
+        );
+        task.getStandaloneRunTasks().set(
+                plan.modules().stream().map(ModuleRegistration::standaloneRunTask).toList()
+        );
+        task.getStandaloneBuildTasks().set(
+                plan.modules().stream().map(ModuleRegistration::standaloneBuildTask).toList()
+        );
+        task.getPlainJarTasks().set(
+                plan.modules().stream().map(ModuleRegistration::plainJarTask).toList()
+        );
         task.getDistribution().set(plan.distribution() == null ? "" : plan.distribution());
         task.getApplicationName().set(plan.applicationName());
         task.getJavaVersion().set(extension.getJavaVersion());
+        task.getRuntimeDebug().set(plan.runtimeOptions().debug());
+        if (plan.runtimeOptions().port() != null) {
+            task.getRuntimePort().set(plan.runtimeOptions().port());
+        }
+        if (plan.runtimeOptions().profile() != null) {
+            task.getRuntimeProfile().set(plan.runtimeOptions().profile());
+        }
+        configureGeneratedHostArtifact(task, plan);
+        configureGeneratedHostContainer(task, plan);
         task.getFrameworkOptions().put(
                 ModuleComposerDefaults.SPRING_BOOT_VERSION_KEY,
                 extension.getSpringBootVersion()
@@ -523,6 +584,37 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 ModuleComposerDefaults.DEPENDENCY_MANAGEMENT_VERSION_KEY,
                 extension.getDependencyManagementVersion()
         );
+    }
+
+    private static void configureGeneratedHostArtifact(
+            GenerateHostTask task,
+            CompositionPlan plan
+    ) {
+        if (plan.artifact() != null && plan.artifact().fileName() != null) {
+            task.getArtifactFileName().set(plan.artifact().fileName());
+        }
+    }
+
+    private static void configureGeneratedHostContainer(
+            GenerateHostTask task,
+            CompositionPlan plan
+    ) {
+        if (plan.container() == null) {
+            return;
+        }
+
+        if (plan.container().image() != null) {
+            task.getContainerImage().set(plan.container().image());
+        }
+        if (plan.container().baseImage() != null) {
+            task.getContainerBaseImage().set(plan.container().baseImage());
+        }
+        if (plan.container().hostPort() != null) {
+            task.getContainerHostPort().set(plan.container().hostPort());
+        }
+        if (plan.container().containerPort() != null) {
+            task.getContainerPort().set(plan.container().containerPort());
+        }
     }
 
     private TaskProvider<Exec> registerGeneratedExec(
@@ -556,7 +648,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         );
     }
 
-    private TaskProvider<Task> registerCopyGeneratedHostJar(
+    private TaskProvider<CopyGeneratedHostJarTask> registerCopyGeneratedHostJar(
             Project root,
             ModuleComposerExtension extension,
             FrameworkAdapter adapter,
@@ -566,22 +658,23 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
     ) {
         return root.getTasks().register(
                 COPY_GENERATED_HOST_JAR_TASK,
+                CopyGeneratedHostJarTask.class,
                 task -> {
                     task.setGroup(TASK_GROUP);
                     task.dependsOn(buildGenerated);
-                    task.doLast(ignored -> copyGeneratedHostJar(
-                            root,
+                    configureCopyGeneratedHostJar(
+                            task,
                             extension,
                             adapter,
                             plan,
                             hostDirectory
-                    ));
+                    );
                 }
         );
     }
 
-    private void copyGeneratedHostJar(
-            Project root,
+    private static void configureCopyGeneratedHostJar(
+            CopyGeneratedHostJarTask task,
             ModuleComposerExtension extension,
             FrameworkAdapter adapter,
             CompositionPlan plan,
@@ -592,22 +685,34 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 .resolve(adapter.generatedArtifact())
                 .toFile();
         File target = outputJar(extension, plan);
+        task.getSourceJar().set(source);
+        task.getTargetJar().set(target);
+        task.getApplicationName().set(plan.applicationName());
+        task.getContainerEnabled().set(plan.container() != null);
+        task.getContainerDirectory().set(containerOutputDirectory(plan, target));
+        configureContainerInputs(task, plan);
+    }
 
-        if (!source.exists()) {
-            throw new GradleException(
-                    "Generated JAR not found: " + source.getAbsolutePath()
-            );
+    private static void configureContainerInputs(
+            CopyGeneratedHostJarTask task,
+            CompositionPlan plan
+    ) {
+        if (plan.container() == null) {
+            return;
         }
 
-        target.getParentFile().mkdirs();
-        root.copy(spec -> {
-            spec.from(source);
-            spec.into(target.getParentFile());
-            spec.rename(ignoredName -> target.getName());
-        });
-
-        writeContainerFiles(plan, target);
-        root.getLogger().lifecycle("Combined JAR: {}", target.getAbsolutePath());
+        if (plan.container().image() != null) {
+            task.getContainerImage().set(plan.container().image());
+        }
+        if (plan.container().baseImage() != null) {
+            task.getContainerBaseImage().set(plan.container().baseImage());
+        }
+        if (plan.container().hostPort() != null) {
+            task.getContainerHostPort().set(plan.container().hostPort());
+        }
+        if (plan.container().containerPort() != null) {
+            task.getContainerPort().set(plan.container().containerPort());
+        }
     }
 
     private List<String> validationTasks(Project root, CompositionPlan plan) {
@@ -727,88 +832,6 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         );
     }
 
-    private void writeContainerFiles(CompositionPlan plan, File outputJar) {
-        File directory = containerOutputDirectory(plan, outputJar);
-        if (plan.container() == null) {
-            deleteContainerFiles(directory);
-            return;
-        }
-
-        int hostPort = containerHostPort(plan.container());
-        int containerPort = containerContainerPort(plan.container());
-        String image = plan.container().image() == null
-                ? plan.applicationName() + ":local"
-                : plan.container().image();
-        String baseImage = plan.container().baseImage() == null
-                ? "eclipse-temurin:21-jre"
-                : plan.container().baseImage();
-        String serviceName = containerServiceName(plan.applicationName());
-        String jarReference = outputJar.getName();
-
-        try {
-            Files.createDirectories(directory.toPath());
-            Files.writeString(
-                    directory.toPath().resolve("Dockerfile"),
-                    """
-                    FROM %s
-
-                    WORKDIR /app
-
-                    ARG JAR_FILE=%s
-                    COPY ${JAR_FILE} /app/app.jar
-
-                    EXPOSE %d
-
-                    ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-                    """.formatted(baseImage, jarReference, containerPort)
-            );
-
-            Files.writeString(
-                    directory.toPath().resolve("docker-compose.yml"),
-                    """
-                    services:
-                      %s:
-                        build:
-                          context: ../..
-                          dockerfile: containers/%s/Dockerfile
-                          args:
-                            JAR_FILE: %s
-                        image: %s
-                        ports:
-                          - "%d:%d"
-                        restart: unless-stopped
-                    """.formatted(
-                            serviceName,
-                            serviceName,
-                            jarReference,
-                            image,
-                            hostPort,
-                            containerPort
-                    )
-            );
-        } catch (IOException exception) {
-            throw new GradleException(
-                    "Unable to write container files to " +
-                            directory.getAbsolutePath(),
-                    exception
-            );
-        }
-    }
-
-    private void deleteContainerFiles(File directory) {
-        try {
-            Files.deleteIfExists(directory.toPath().resolve("Dockerfile"));
-            Files.deleteIfExists(directory.toPath().resolve("docker-compose.yml"));
-            Files.deleteIfExists(directory.toPath());
-        } catch (IOException exception) {
-            throw new GradleException(
-                    "Unable to remove stale container files from " +
-                            directory.getAbsolutePath(),
-                    exception
-            );
-        }
-    }
-
     private static File containerOutputDirectory(
             CompositionPlan plan,
             File outputJar
@@ -816,7 +839,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         return outputJar.getParentFile()
                 .toPath()
                 .resolve("containers")
-                .resolve(containerServiceName(plan.applicationName()))
+                .resolve(CopyGeneratedHostJarTask.containerServiceName(plan.applicationName()))
                 .toFile();
     }
 
@@ -896,133 +919,10 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         return project.file(extension.getDistributionFile().get()).toPath();
     }
 
-    private void explainPlan(
-            Project project,
-            ModuleComposerExtension extension,
-            FrameworkAdapter adapter,
-            GradleBuildToolAdapter buildTool,
-            CompositionPlan plan
-    ) {
-        logPlanSummary(project, adapter, buildTool, plan);
-        logPlanModules(project, plan);
-        logPlanExecution(project, extension, adapter, buildTool, plan);
-        project.getLogger().lifecycle("");
-    }
-
-    private void logPlanSummary(
-            Project project,
-            FrameworkAdapter adapter,
-            GradleBuildToolAdapter buildTool,
-            CompositionPlan plan
-    ) {
-        project.getLogger().lifecycle("");
-        project.getLogger().lifecycle("Module Composer");
-        project.getLogger().lifecycle("---------------");
-        project.getLogger().lifecycle("Framework      : {}", plan.framework());
-        project.getLogger().lifecycle("Build tool     : {}", buildTool.buildToolId());
-        project.getLogger().lifecycle("Execution      : {}", plan.executionMode());
-        project.getLogger().lifecycle("Adapter        : {}", adapter.getClass().getSimpleName());
-        project.getLogger().lifecycle("Selection mode : {}", plan.selectionMode());
-        logPlanDistribution(project, plan);
-        project.getLogger().lifecycle("Application    : {}", plan.applicationName());
-        project.getLogger().lifecycle("Validation     : {}", validationMode(project));
-        logPlanArtifact(project, plan);
-        logPlanContainer(project, plan);
-        project.getLogger().lifecycle("Port           : {}", runtimePort(plan));
-    }
-
-    private static void logPlanDistribution(
-            Project project,
-            CompositionPlan plan
-    ) {
-        if (plan.distribution() != null) {
-            project.getLogger().lifecycle("Distribution   : {}", plan.distribution());
-        }
-    }
-
-    private static void logPlanArtifact(Project project, CompositionPlan plan) {
-        if (plan.artifact() == null || plan.artifact().fileName() == null) {
-            return;
-        }
-
-        project.getLogger().lifecycle(
-                "Artifact       : {}",
-                plan.artifact().fileName()
-        );
-    }
-
-    private static void logPlanContainer(Project project, CompositionPlan plan) {
-        if (plan.container() == null) {
-            return;
-        }
-
-        int hostPort = containerHostPort(plan.container());
-        int containerPort = containerContainerPort(plan.container());
-        project.getLogger().lifecycle(
-                "Container      : {}:{}->{}",
-                containerImage(plan.container()),
-                hostPort,
-                containerPort
-        );
-    }
-
     private static Object runtimePort(CompositionPlan plan) {
         return plan.runtimeOptions().port() == null
                 ? "default"
                 : plan.runtimeOptions().port();
-    }
-
-    private static void logPlanModules(Project project, CompositionPlan plan) {
-        project.getLogger().lifecycle("Modules:");
-        plan.moduleNames().forEach(
-                name -> project.getLogger().lifecycle(ITEM_LOG_FORMAT, name)
-        );
-    }
-
-    private void logPlanExecution(
-            Project project,
-            ModuleComposerExtension extension,
-            FrameworkAdapter adapter,
-            GradleBuildToolAdapter buildTool,
-            CompositionPlan plan
-    ) {
-        if (plan.isStandalone()) {
-            logStandalonePlan(project, adapter, buildTool, plan.modules().get(0));
-            return;
-        }
-
-        logGeneratedPlan(project, extension, plan);
-    }
-
-    private static void logStandalonePlan(
-            Project project,
-            FrameworkAdapter adapter,
-            GradleBuildToolAdapter buildTool,
-            ModuleRegistration module
-    ) {
-        project.getLogger().lifecycle("Run task:");
-        project.getLogger().lifecycle(
-                "  {}",
-                buildTool.standaloneRun(adapter, module).displayName()
-        );
-        project.getLogger().lifecycle("Build task:");
-        project.getLogger().lifecycle(
-                "  {}",
-                buildTool.standaloneBuild(adapter, module).displayName()
-        );
-    }
-
-    private static void logGeneratedPlan(
-            Project project,
-            ModuleComposerExtension extension,
-            CompositionPlan plan
-    ) {
-        File host = generatedHostDirectory(extension, plan);
-        File output = outputJar(extension, plan);
-        project.getLogger().lifecycle("Generated Host:");
-        project.getLogger().lifecycle("  {}", host.getPath());
-        project.getLogger().lifecycle("Build output:");
-        project.getLogger().lifecycle("  {}", output.getPath());
     }
 
     private static File outputJar(
@@ -1073,43 +973,11 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         return configured;
     }
 
-    private static String containerServiceName(String value) {
-        StringBuilder normalized = new StringBuilder();
-        boolean pendingSeparator = false;
-        for (int index = 0; index < value.length(); index++) {
-            char character = Character.toLowerCase(value.charAt(index));
-            if (isContainerServiceNameCharacter(character)) {
-                appendPendingSeparator(normalized, pendingSeparator);
-                normalized.append(character);
-                pendingSeparator = false;
-            } else {
-                pendingSeparator = !normalized.isEmpty();
-            }
-        }
-        return normalized.isEmpty() ? "app" : normalized.toString();
-    }
-
-    private static void appendPendingSeparator(
-            StringBuilder value,
-            boolean pendingSeparator
-    ) {
-        if (pendingSeparator) {
-            value.append('-');
-        }
-    }
-
-    private static boolean isContainerServiceNameCharacter(char value) {
-        return value >= 'a' && value <= 'z'
-                || value >= '0' && value <= '9'
-                || value == '_'
-                || value == '-';
-    }
-
-    private static String containerImage(DistributionContainer container) {
+    static String containerImage(DistributionContainer container) {
         return container.image() == null ? "(no image)" : container.image();
     }
 
-    private static int containerHostPort(DistributionContainer container) {
+    static int containerHostPort(DistributionContainer container) {
         if (container.hostPort() != null) {
             return container.hostPort();
         }
@@ -1119,7 +987,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         return 8080;
     }
 
-    private static int containerContainerPort(DistributionContainer container) {
+    static int containerContainerPort(DistributionContainer container) {
         if (container.containerPort() != null) {
             return container.containerPort();
         }
@@ -1133,6 +1001,12 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             List<String> jarTasks,
             List<Provider<String>> jarPaths,
             List<String> configurationClasses
+    ) {
+    }
+
+    private record DiscoveryTasks(
+            TaskProvider<ListModulesTask> listModules,
+            TaskProvider<ListDistributionsTask> listDistributions
     ) {
     }
 }
