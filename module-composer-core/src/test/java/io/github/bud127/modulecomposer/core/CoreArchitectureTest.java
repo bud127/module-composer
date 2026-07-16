@@ -204,6 +204,141 @@ class CoreArchitectureTest {
     }
 
     @Test
+    void distributionRejectsUnknownRootField() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                unknown: true
+                distributions:
+                  community:
+                    modules:
+                      - payment
+                """);
+        DistributionLoader loader = new DistributionLoader(yaml);
+
+        ModuleComposerException exception = assertThrows(
+                ModuleComposerException.class,
+                loader::loadRequired
+        );
+
+        assertTrue(exception.getMessage().contains("Unknown field 'unknown'"));
+        assertTrue(exception.getMessage().contains("distribution root"));
+    }
+
+    @Test
+    void distributionRejectsUnknownPresetField() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                distributions:
+                  community:
+                    modules:
+                      - payment
+                    extra: true
+                """);
+        DistributionLoader loader = new DistributionLoader(yaml);
+
+        ModuleComposerException exception = assertThrows(
+                ModuleComposerException.class,
+                loader::loadRequired
+        );
+
+        assertTrue(exception.getMessage().contains("Unknown field 'extra'"));
+        assertTrue(exception.getMessage().contains("distribution 'community'"));
+    }
+
+    @Test
+    void distributionRejectsInvalidVersionShape() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version:
+                  major: 1
+                distributions:
+                  community:
+                    modules:
+                      - payment
+                """);
+        DistributionLoader loader = new DistributionLoader(yaml);
+
+        ModuleComposerException exception = assertThrows(
+                ModuleComposerException.class,
+                loader::loadRequired
+        );
+
+        assertTrue(exception.getMessage().contains("Field 'version'"));
+        assertTrue(exception.getMessage().contains("non-empty string or number"));
+    }
+
+    @Test
+    void distributionRejectsDuplicateModules() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                distributions:
+                  community:
+                    modules:
+                      - payment
+                      - payment
+                """);
+        DistributionLoader loader = new DistributionLoader(yaml);
+
+        ModuleComposerException exception = assertThrows(
+                ModuleComposerException.class,
+                loader::loadRequired
+        );
+
+        assertTrue(exception.getMessage().contains("duplicate module 'payment'"));
+    }
+
+    @Test
+    void distributionRejectsUnknownArtifactField() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                distributions:
+                  community:
+                    modules:
+                      - payment
+                    artifact:
+                      fileName: application.jar
+                      classifier: boot
+                """);
+        DistributionLoader loader = new DistributionLoader(yaml);
+
+        ModuleComposerException exception = assertThrows(
+                ModuleComposerException.class,
+                loader::loadRequired
+        );
+
+        assertTrue(exception.getMessage().contains("Unknown field 'classifier'"));
+        assertTrue(exception.getMessage().contains("artifact"));
+    }
+
+    @Test
+    void distributionRejectsUnknownContainerField() throws IOException {
+        Path yaml = directory.resolve("distributions.yml");
+        Files.writeString(yaml, """
+                version: 1
+                distributions:
+                  community:
+                    modules:
+                      - payment
+                    container:
+                      image: bud127/community
+                      port: 8080
+                """);
+        DistributionLoader loader = new DistributionLoader(yaml);
+
+        ModuleComposerException exception = assertThrows(
+                ModuleComposerException.class,
+                loader::loadRequired
+        );
+
+        assertTrue(exception.getMessage().contains("Unknown field 'port'"));
+        assertTrue(exception.getMessage().contains("container"));
+    }
+
+    @Test
     void plannerCreatesGeneratedHostPlanForMultipleModules() {
         ModuleSelection selection = new ModuleSelection(
                 List.of(

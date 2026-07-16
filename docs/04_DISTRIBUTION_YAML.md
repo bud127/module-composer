@@ -130,3 +130,55 @@ Preset module names are resolved against modules registered by
 `io.github.bud127.module-composer-module`.
 
 `-Pdistribution` cannot be used together with `-Pmodules`.
+
+## Schema Validation
+
+Distribution YAML is validated strictly. Unknown fields fail fast so typos do
+not silently change build output.
+
+Allowed root fields for `distributions.yml`:
+
+```text
+version
+distributions
+```
+
+Allowed fields for a preset inside `distributions.yml`:
+
+```text
+applicationName
+modules
+artifact
+container
+```
+
+Allowed root fields for `distributions/<name>.yaml`:
+
+```text
+name
+version
+applicationName
+modules
+artifact
+container
+```
+
+Allowed `artifact` fields:
+
+```text
+fileName
+```
+
+Allowed `container` fields:
+
+```text
+image
+baseImage
+hostPort
+containerPort
+```
+
+`modules` must be a list of non-empty values. Duplicate module names in the
+same distribution are rejected.
+
+`version` is optional. When present, it must be a non-empty string or number.

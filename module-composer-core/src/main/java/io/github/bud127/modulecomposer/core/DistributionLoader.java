@@ -12,10 +12,43 @@ import java.util.Map;
 public final class DistributionLoader {
 
     private static final String DISTRIBUTIONS_KEY = "distributions";
+    private static final String VERSION_KEY = "version";
+    private static final String NAME_KEY = "name";
+    private static final String APPLICATION_NAME_KEY = "applicationName";
+    private static final String MODULES_KEY = "modules";
+    private static final String ARTIFACT_KEY = "artifact";
+    private static final String CONTAINER_KEY = "container";
+    private static final String FILE_NAME_KEY = "fileName";
+    private static final String IMAGE_KEY = "image";
+    private static final String BASE_IMAGE_KEY = "baseImage";
+    private static final String HOST_PORT_KEY = "hostPort";
+    private static final String CONTAINER_PORT_KEY = "containerPort";
     private static final String YAML_EXTENSION = ".yaml";
     private static final String YML_EXTENSION = ".yml";
     private static final String INVALID_YAML_ROOT_MESSAGE = "Invalid YAML root in ";
     private static final String UNABLE_TO_READ_MESSAGE = "Unable to read ";
+    private static final List<String> MULTI_ROOT_KEYS = List.of(VERSION_KEY, DISTRIBUTIONS_KEY);
+    private static final List<String> SINGLE_ROOT_KEYS = List.of(
+            NAME_KEY,
+            VERSION_KEY,
+            APPLICATION_NAME_KEY,
+            MODULES_KEY,
+            ARTIFACT_KEY,
+            CONTAINER_KEY
+    );
+    private static final List<String> PRESET_KEYS = List.of(
+            APPLICATION_NAME_KEY,
+            MODULES_KEY,
+            ARTIFACT_KEY,
+            CONTAINER_KEY
+    );
+    private static final List<String> ARTIFACT_KEYS = List.of(FILE_NAME_KEY);
+    private static final List<String> CONTAINER_KEYS = List.of(
+            IMAGE_KEY,
+            BASE_IMAGE_KEY,
+            HOST_PORT_KEY,
+            CONTAINER_PORT_KEY
+    );
 
     private final Path file;
 
@@ -71,9 +104,13 @@ public final class DistributionLoader {
 
     private DistributionConfig parseDistributionRoot(Map<?, ?> root) {
         if (root.get(DISTRIBUTIONS_KEY) instanceof Map<?, ?> distributionMap) {
+            validateAllowedKeys(root, MULTI_ROOT_KEYS, "distribution root");
+            validateVersion(root, "distribution root");
             return parseMultiDistributionFile(distributionMap);
         }
 
+        validateAllowedKeys(root, SINGLE_ROOT_KEYS, "single distribution root");
+        validateVersion(root, "single distribution root");
         NamedDistribution distribution = parseSingleDistributionFile(root);
         return new DistributionConfig(Map.of(distribution.name(), distribution.preset()));
     }
@@ -140,6 +177,7 @@ public final class DistributionLoader {
                 );
             }
 
+            validateAllowedKeys(metadata, PRESET_KEYS, "distribution '" + name + "'");
             distributions.put(name, parsePreset(name, metadata));
         }
 
@@ -164,7 +202,7 @@ public final class DistributionLoader {
     }
 
     private NamedDistribution parseSingleDistributionFile(Map<?, ?> root) {
-        String name = optionalString(root.get("name"));
+        String name = optionalString(root.get(NAME_KEY));
         if (name == null) {
             throw new ModuleComposerException(
                     "Single distribution YAML must define a non-empty 'name'."
@@ -175,43 +213,86 @@ public final class DistributionLoader {
     }
 
     private DistributionPreset parsePreset(String name, Map<?, ?> metadata) {
-        if (!(metadata.get("modules") instanceof List<?> list)) {
+        if (!(metadata.get(MODULES_KEY) instanceof List<?> list)) {
             throw new ModuleComposerException(
                     "Distribution '" + name + "' must define a modules list."
             );
         }
+        List<String> modules = parseModules(name, list);
 
-        String applicationName = optionalString(metadata.get("applicationName"));
+        String applicationName = optionalString(metadata.get(APPLICATION_NAME_KEY));
         if (applicationName == null) {
-            applicationName = optionalString(metadata.get("name"));
+            applicationName = optionalString(metadata.get(NAME_KEY));
         }
 
         return new DistributionPreset(
-                list.stream().map(String::valueOf).toList(),
+                modules,
                 applicationName,
-                parseArtifact(metadata.get("artifact")),
-                parseContainer(metadata.get("container"))
+                parseArtifact(name, metadata.get(ARTIFACT_KEY)),
+                parseContainer(name, metadata.get(CONTAINER_KEY))
         );
     }
 
-    private DistributionArtifact parseArtifact(Object value) {
-        if (!(value instanceof Map<?, ?> metadata)) {
-            return null;
+    private static List<String> parseModules(String distribution, List<?> list) {
+        List<String> modules = new java.util.ArrayList<>();
+        for (Object entry : list) {
+            String module = optionalString(entry);
+            if (module == null) {
+                throw new ModuleComposerException(
+                        "Distribution '" + distribution +
+                                "' modules must contain non-empty values."
+                );
+            }
+            if (modules.contains(module)) {
+                throw new ModuleComposerException(
+                        "Distribution '" + distribution +
+                                "' contains duplicate module '" + module + "'."
+                );
+            }
+            modules.add(module);
         }
 
-        String fileName = optionalString(metadata.get("fileName"));
+        return List.copyOf(modules);
+    }
+
+    private DistributionArtifact parseArtifact(String distribution, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof Map<?, ?> metadata)) {
+            throw new ModuleComposerException(
+                    "Distribution '" + distribution + "' artifact must define metadata."
+            );
+        }
+        validateAllowedKeys(
+                metadata,
+                ARTIFACT_KEYS,
+                "distribution '" + distribution + "' artifact"
+        );
+
+        String fileName = optionalString(metadata.get(FILE_NAME_KEY));
         return fileName == null ? null : new DistributionArtifact(fileName);
     }
 
-    private DistributionContainer parseContainer(Object value) {
-        if (!(value instanceof Map<?, ?> metadata)) {
+    private DistributionContainer parseContainer(String distribution, Object value) {
+        if (value == null) {
             return null;
         }
+        if (!(value instanceof Map<?, ?> metadata)) {
+            throw new ModuleComposerException(
+                    "Distribution '" + distribution + "' container must define metadata."
+            );
+        }
+        validateAllowedKeys(
+                metadata,
+                CONTAINER_KEYS,
+                "distribution '" + distribution + "' container"
+        );
 
-        String image = optionalString(metadata.get("image"));
-        String baseImage = optionalString(metadata.get("baseImage"));
-        Integer hostPort = optionalContainerPort(metadata, "hostPort");
-        Integer containerPort = optionalContainerPort(metadata, "containerPort");
+        String image = optionalString(metadata.get(IMAGE_KEY));
+        String baseImage = optionalString(metadata.get(BASE_IMAGE_KEY));
+        Integer hostPort = optionalContainerPort(metadata, HOST_PORT_KEY);
+        Integer containerPort = optionalContainerPort(metadata, CONTAINER_PORT_KEY);
         if (!hasContainerMetadata(image, baseImage, hostPort, containerPort)) {
             return null;
         }
@@ -266,6 +347,37 @@ public final class DistributionLoader {
 
         String text = String.valueOf(value).trim();
         return text.isBlank() ? null : text;
+    }
+
+    private static void validateAllowedKeys(
+            Map<?, ?> metadata,
+            List<String> allowedKeys,
+            String context
+    ) {
+        for (Object rawKey : metadata.keySet()) {
+            String key = String.valueOf(rawKey);
+            if (!allowedKeys.contains(key)) {
+                throw new ModuleComposerException(
+                        "Unknown field '" + key + "' in " + context +
+                                ". Allowed fields: " + allowedKeys
+                );
+            }
+        }
+    }
+
+    private static void validateVersion(Map<?, ?> metadata, String context) {
+        Object version = metadata.get(VERSION_KEY);
+        if (version == null) {
+            return;
+        }
+
+        if (!(version instanceof CharSequence || version instanceof Number)
+                || optionalString(version) == null) {
+            throw new ModuleComposerException(
+                    "Field 'version' in " + context +
+                            " must be a non-empty string or number."
+            );
+        }
     }
 
     private static Path namedDistributionFile(Path directory, String distributionName) {
