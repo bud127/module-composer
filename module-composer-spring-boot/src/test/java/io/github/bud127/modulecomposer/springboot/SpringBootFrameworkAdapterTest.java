@@ -27,23 +27,29 @@ class SpringBootFrameworkAdapterTest {
                 SelectionMode.CLI,
                 List.of(module("payment")),
                 RuntimeOptions.none(),
-                null,
-                "custom-service",
-                null,
-                null
+                new DistributionDetails(
+                        null,
+                        "custom-service",
+                        null,
+                        null
+                )
         );
 
         adapter.generateHost(
                 plan,
                 new GeneratedHostContext(
                         directory,
-                        List.of("/tmp/payment.jar"),
-                        List.of("example.payment.PaymentConfiguration"),
-                        List.of("payment"),
-                        "",
-                        "custom-service",
-                        21,
-                        Map.of()
+                        new GeneratedHostClasspath(
+                                List.of("/tmp/payment.jar"),
+                                List.of("example.payment.PaymentConfiguration")
+                        ),
+                        new GeneratedHostMetadata(
+                                List.of("payment"),
+                                "",
+                                "custom-service",
+                                21,
+                                Map.of()
+                        )
                 )
         );
 

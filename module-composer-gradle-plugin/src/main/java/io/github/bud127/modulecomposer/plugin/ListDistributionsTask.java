@@ -17,8 +17,6 @@ import java.nio.file.Path;
 
 public abstract class ListDistributionsTask extends DefaultTask {
 
-    private static final String ITEM_LOG_FORMAT = "  + {}";
-
     @Input
     public abstract Property<String> getDistributionPath();
 
@@ -58,7 +56,7 @@ public abstract class ListDistributionsTask extends DefaultTask {
 
     private void logDistributionHeader(String name, DistributionPreset preset) {
         if (preset.applicationName() == null) {
-            getLogger().lifecycle(ITEM_LOG_FORMAT, name);
+            getLogger().lifecycle(PluginLogFormats.ITEM, name);
             return;
         }
 

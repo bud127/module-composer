@@ -150,6 +150,7 @@ listDistributions
 explain
 bundleRun
 bundleBuild
+bundleTest
 ```
 
 Without YAML:
@@ -160,6 +161,7 @@ Without YAML:
 ./gradlew bundleRun -Pmodules=payment -Pport=9090
 ./gradlew bundleRun -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification
+./gradlew bundleTest -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification -PapplicationName=custom-service
 ```
 
@@ -170,12 +172,13 @@ With YAML:
 ./gradlew explain -Pdistribution=enterprise
 ./gradlew bundleRun -Pdistribution=community
 ./gradlew bundleBuild -Pdistribution=enterprise -PexcludeModules=audit
+./gradlew bundleTest -Pdistribution=enterprise
 ```
 
 Generated-host execution also wires internal tasks such as
-`prepareGeneratedHost`, `runGeneratedHost`, `buildGeneratedHost`, and
-`copyGeneratedHostJar`. They are implementation details behind `bundleRun` and
-`bundleBuild`.
+`prepareGeneratedHost`, `runGeneratedHost`, `buildGeneratedHost`,
+`testGeneratedHost`, and `copyGeneratedHostJar`. They are implementation details
+behind `bundleRun`, `bundleBuild`, and `bundleTest`.
 
 `-Pmodules` and `-Pdistribution` are mutually exclusive.
 

@@ -26,16 +26,19 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
     private static final String TASK_GROUP = "module composer";
     private static final String BUNDLE_RUN_TASK = "bundleRun";
     private static final String BUNDLE_BUILD_TASK = "bundleBuild";
+    private static final String BUNDLE_TEST_TASK = "bundleTest";
     private static final String EXPLAIN_TASK = "explain";
     private static final String LIST_MODULES_TASK = "listModules";
     private static final String LIST_DISTRIBUTIONS_TASK = "listDistributions";
     private static final String PREPARE_GENERATED_HOST_TASK = "prepareGeneratedHost";
     private static final String RUN_GENERATED_HOST_TASK = "runGeneratedHost";
     private static final String BUILD_GENERATED_HOST_TASK = "buildGeneratedHost";
+    private static final String TEST_GENERATED_HOST_TASK = "testGeneratedHost";
     private static final String COPY_GENERATED_HOST_JAR_TASK = "copyGeneratedHostJar";
-    private static final String APPLICATION_NAME_PROPERTY = "applicationName";
+    private static final String APPLICATION_NAME_PROPERTY =
+            ModuleComposerDefaults.APPLICATION_NAME_KEY;
     private static final String DISTRIBUTION_PROPERTY = "distribution";
-    private static final String MODULES_PROPERTY = "modules";
+    private static final String MODULES_PROPERTY = ModuleComposerDefaults.MODULES_KEY;
     private static final String INCLUDE_MODULES_PROPERTY = "includeModules";
     private static final String EXCLUDE_MODULES_PROPERTY = "excludeModules";
     private static final String PROFILE_PROPERTY = "profile";
@@ -43,8 +46,8 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
     private static final String VALIDATION_PROPERTY = "validation";
     private static final String GENERATED_DIRECTORY_NAME = "generated";
     private static final String MODULE_COMPOSER_DIRECTORY_NAME = "module-composer";
-    private static final String ITEM_LOG_FORMAT = "  + {}";
     private static final String DEFAULT_DISTRIBUTION_FILE = "distributions.yml";
+    private static final String TEST_TASK_NAME = "test";
 
     @Override
     public void apply(Project project) {
@@ -73,6 +76,13 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 BUNDLE_BUILD_TASK,
                 "Builds one module directly or a generated combined JAR."
         );
+
+        TaskProvider<Task> bundleTest = registerTask(
+                project,
+                BUNDLE_TEST_TASK,
+                "Tests one module directly or validates a generated combined host."
+        );
+        BundleTasks bundleTasks = new BundleTasks(bundleRun, bundleBuild, bundleTest);
 
         TaskProvider<ExplainModuleComposerTask> explain = registerExplainTask(
                 project,
@@ -109,7 +119,13 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             );
 
             if (plan.isStandalone()) {
-                configureStandalone(project, buildTool, adapter, plan, bundleRun, bundleBuild);
+                configureStandalone(
+                        project,
+                        buildTool,
+                        adapter,
+                        plan,
+                        bundleTasks
+                );
             } else {
                 configureGeneratedHost(
                         project,
@@ -117,8 +133,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                         buildTool,
                         adapter,
                         plan,
-                        bundleRun,
-                        bundleBuild
+                        bundleTasks
                 );
             }
         });
@@ -327,7 +342,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
     }
 
     private static String moduleDescription(ModuleRegistration module) {
-        return ITEM_LOG_FORMAT.replace("{}", module.name()) + System.lineSeparator() +
+        return PluginLogFormats.ITEM.replace("{}", module.name()) + System.lineSeparator() +
                 "      project: " + module.projectPath() + System.lineSeparator() +
                 "      configuration: " + module.configurationClass();
     }
@@ -356,7 +371,8 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         Path parent = distributionPath.getParent() == null
                 ? Path.of(".")
                 : distributionPath.getParent();
-        File defaultDirectory = parent.resolve("distributions").toFile();
+        File defaultDirectory = parent.resolve(ModuleComposerDefaults.DISTRIBUTIONS_KEY)
+                .toFile();
         if (defaultDirectory.isDirectory()) {
             task.getDistributionSources().from(project.fileTree(defaultDirectory));
         }
@@ -367,24 +383,25 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             GradleBuildToolAdapter buildTool,
             FrameworkAdapter adapter,
             CompositionPlan plan,
-            TaskProvider<Task> bundleRun,
-            TaskProvider<Task> bundleBuild
+            BundleTasks bundleTasks
     ) {
         ModuleRegistration module = plan.modules().get(0);
         BuildInvocation run = buildTool.standaloneRun(adapter, module);
         BuildInvocation build = buildTool.standaloneBuild(adapter, module);
+        String test = module.projectPath() + ":" + TEST_TASK_NAME;
         List<String> validationTasks = validationTasks(root, plan);
 
         configureRunParameters(root, buildTool, run);
 
-        bundleRun.configure(task -> {
+        bundleTasks.run().configure(task -> {
             task.dependsOn(validationTasks);
             task.dependsOn(run.steps());
         });
-        bundleBuild.configure(task -> {
+        bundleTasks.build().configure(task -> {
             task.dependsOn(validationTasks);
             task.dependsOn(build.steps());
         });
+        bundleTasks.test().configure(task -> task.dependsOn(test));
     }
 
     private void configureGeneratedHost(
@@ -393,8 +410,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             GradleBuildToolAdapter buildTool,
             FrameworkAdapter adapter,
             CompositionPlan plan,
-            TaskProvider<Task> bundleRun,
-            TaskProvider<Task> bundleBuild
+            BundleTasks bundleTasks
     ) {
         List<String> validationTasks = validationTasks(root, plan);
         GeneratedHostInputs inputs = generatedHostInputs(
@@ -403,15 +419,18 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 plan
         );
         File hostDirectory = generatedHostDirectory(extension, plan);
-
-        TaskProvider<GenerateHostTask> prepare = registerPrepareGeneratedHost(
-                root,
+        GeneratedHostSetup setup = new GeneratedHostSetup(
                 extension,
                 adapter,
                 plan,
                 validationTasks,
                 inputs,
                 hostDirectory
+        );
+
+        TaskProvider<GenerateHostTask> prepare = registerPrepareGeneratedHost(
+                root,
+                setup
         );
         TaskProvider<Exec> runGenerated = registerGeneratedExec(
                 root,
@@ -429,17 +448,20 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 prepare,
                 false
         );
+        TaskProvider<Exec> testGenerated = registerGeneratedHostTest(
+                root,
+                hostDirectory,
+                prepare
+        );
         TaskProvider<CopyGeneratedHostJarTask> copyJar = registerCopyGeneratedHostJar(
                 root,
-                extension,
-                adapter,
-                plan,
-                hostDirectory,
+                setup,
                 buildGenerated
         );
 
-        bundleRun.configure(task -> task.dependsOn(runGenerated));
-        bundleBuild.configure(task -> task.dependsOn(copyJar));
+        bundleTasks.run().configure(task -> task.dependsOn(runGenerated));
+        bundleTasks.build().configure(task -> task.dependsOn(copyJar));
+        bundleTasks.test().configure(task -> task.dependsOn(testGenerated));
     }
 
     private GeneratedHostInputs generatedHostInputs(
@@ -508,81 +530,78 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
 
     private TaskProvider<GenerateHostTask> registerPrepareGeneratedHost(
             Project root,
-            ModuleComposerExtension extension,
-            FrameworkAdapter adapter,
-            CompositionPlan plan,
-            List<String> validationTasks,
-            GeneratedHostInputs inputs,
-            File hostDirectory
+            GeneratedHostSetup setup
     ) {
         return root.getTasks().register(
                 PREPARE_GENERATED_HOST_TASK,
                 GenerateHostTask.class,
                 task -> configurePrepareGeneratedHost(
                         task,
-                        extension,
-                        adapter,
-                        plan,
-                        validationTasks,
-                        inputs,
-                        hostDirectory
+                        setup
                 )
         );
     }
 
     private static void configurePrepareGeneratedHost(
             GenerateHostTask task,
-            ModuleComposerExtension extension,
-            FrameworkAdapter adapter,
-            CompositionPlan plan,
-            List<String> validationTasks,
-            GeneratedHostInputs inputs,
-            File hostDirectory
+            GeneratedHostSetup setup
     ) {
         task.setGroup(TASK_GROUP);
-        task.dependsOn(validationTasks);
-        task.dependsOn(inputs.jarTasks());
-        task.getAdapterClassName().set(adapter.getClass().getName());
-        task.getFramework().set(plan.framework());
-        task.getSelectionMode().set(plan.selectionMode().name());
-        task.getHostDirectory().set(hostDirectory);
-        inputs.jarPaths().forEach(task.getDependencyJarPaths()::add);
-        task.getConfigurationClasses().set(inputs.configurationClasses());
-        task.getModuleNames().set(plan.moduleNames());
+        task.dependsOn(setup.validationTasks());
+        task.dependsOn(setup.inputs().jarTasks());
+        task.getAdapterClassName().set(setup.adapter().getClass().getName());
+        task.getFramework().set(setup.plan().framework());
+        task.getSelectionMode().set(setup.plan().selectionMode().name());
+        task.getHostDirectory().set(setup.hostDirectory());
+        setup.inputs().jarPaths().forEach(task.getDependencyJarPaths()::add);
+        task.getConfigurationClasses().set(setup.inputs().configurationClasses());
+        task.getModuleNames().set(setup.plan().moduleNames());
         task.getModuleProjectPaths().set(
-                plan.modules().stream().map(ModuleRegistration::projectPath).toList()
+                setup.plan().modules().stream()
+                        .map(ModuleRegistration::projectPath)
+                        .toList()
         );
         task.getModuleConfigurationClasses().set(
-                plan.modules().stream().map(ModuleRegistration::configurationClass).toList()
+                setup.plan().modules().stream()
+                        .map(ModuleRegistration::configurationClass)
+                        .toList()
         );
         task.getStandaloneRunTasks().set(
-                plan.modules().stream().map(ModuleRegistration::standaloneRunTask).toList()
+                setup.plan().modules().stream()
+                        .map(ModuleRegistration::standaloneRunTask)
+                        .toList()
         );
         task.getStandaloneBuildTasks().set(
-                plan.modules().stream().map(ModuleRegistration::standaloneBuildTask).toList()
+                setup.plan().modules().stream()
+                        .map(ModuleRegistration::standaloneBuildTask)
+                        .toList()
         );
         task.getPlainJarTasks().set(
-                plan.modules().stream().map(ModuleRegistration::plainJarTask).toList()
+                setup.plan().modules().stream()
+                        .map(ModuleRegistration::plainJarTask)
+                        .toList()
         );
-        task.getDistribution().set(plan.distribution() == null ? "" : plan.distribution());
-        task.getApplicationName().set(plan.applicationName());
-        task.getJavaVersion().set(extension.getJavaVersion());
-        task.getRuntimeDebug().set(plan.runtimeOptions().debug());
-        if (plan.runtimeOptions().port() != null) {
-            task.getRuntimePort().set(plan.runtimeOptions().port());
+        task.getDistribution().set(
+                setup.plan().distribution() == null ? "" : setup.plan().distribution()
+        );
+        task.getApplicationName().set(setup.plan().applicationName());
+        task.getJavaVersion().set(setup.extension().getJavaVersion());
+        task.getRuntimeDebug().set(setup.plan().runtimeOptions().debug());
+        if (setup.plan().runtimeOptions().port() != null) {
+            task.getRuntimePort().set(setup.plan().runtimeOptions().port());
         }
-        if (plan.runtimeOptions().profile() != null) {
-            task.getRuntimeProfile().set(plan.runtimeOptions().profile());
+        if (setup.plan().runtimeOptions().profile() != null) {
+            task.getRuntimeProfile().set(setup.plan().runtimeOptions().profile());
         }
-        configureGeneratedHostArtifact(task, plan);
-        configureGeneratedHostContainer(task, plan);
+        configureGeneratedHostArtifact(task, setup.plan());
+        configureGeneratedHostContainer(task, setup.plan());
         task.getFrameworkOptions().put(
                 ModuleComposerDefaults.SPRING_BOOT_VERSION_KEY,
-                extension.getSpringBootVersion()
+                setup.extension().getSpringBootVersion()
         );
         task.getFrameworkOptions().put(
                 ModuleComposerDefaults.DEPENDENCY_MANAGEMENT_VERSION_KEY,
-                extension.getDependencyManagementVersion()
+                setup.extension().getDependencyManagementVersion()
         );
     }
 
@@ -648,12 +667,31 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         );
     }
 
+    private TaskProvider<Exec> registerGeneratedHostTest(
+            Project root,
+            File hostDirectory,
+            TaskProvider<GenerateHostTask> prepare
+    ) {
+        return root.getTasks().register(
+                TEST_GENERATED_HOST_TASK,
+                Exec.class,
+                task -> {
+                    task.setGroup(TASK_GROUP);
+                    task.dependsOn(prepare);
+                    configureGeneratedGradleInvocation(
+                            root,
+                            hostDirectory,
+                            task,
+                            List.of(TEST_TASK_NAME),
+                            false
+                    );
+                }
+        );
+    }
+
     private TaskProvider<CopyGeneratedHostJarTask> registerCopyGeneratedHostJar(
             Project root,
-            ModuleComposerExtension extension,
-            FrameworkAdapter adapter,
-            CompositionPlan plan,
-            File hostDirectory,
+            GeneratedHostSetup setup,
             TaskProvider<Exec> buildGenerated
     ) {
         return root.getTasks().register(
@@ -664,10 +702,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                     task.dependsOn(buildGenerated);
                     configureCopyGeneratedHostJar(
                             task,
-                            extension,
-                            adapter,
-                            plan,
-                            hostDirectory
+                            setup
                     );
                 }
         );
@@ -675,22 +710,19 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
 
     private static void configureCopyGeneratedHostJar(
             CopyGeneratedHostJarTask task,
-            ModuleComposerExtension extension,
-            FrameworkAdapter adapter,
-            CompositionPlan plan,
-            File hostDirectory
+            GeneratedHostSetup setup
     ) {
-        File source = hostDirectory
+        File source = setup.hostDirectory()
                 .toPath()
-                .resolve(adapter.generatedArtifact())
+                .resolve(setup.adapter().generatedArtifact())
                 .toFile();
-        File target = outputJar(extension, plan);
+        File target = outputJar(setup.extension(), setup.plan());
         task.getSourceJar().set(source);
         task.getTargetJar().set(target);
-        task.getApplicationName().set(plan.applicationName());
-        task.getContainerEnabled().set(plan.container() != null);
-        task.getContainerDirectory().set(containerOutputDirectory(plan, target));
-        configureContainerInputs(task, plan);
+        task.getApplicationName().set(setup.plan().applicationName());
+        task.getContainerEnabled().set(setup.plan().container() != null);
+        task.getContainerDirectory().set(containerOutputDirectory(setup.plan(), target));
+        configureContainerInputs(task, setup.plan());
     }
 
     private static void configureContainerInputs(
@@ -794,7 +826,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         if (wrapper.exists()) {
             return wrapper.getAbsolutePath();
         }
-        return isWindows() ? "gradle.bat" : "gradle";
+        return isWindows() ? GradleBuildToolAdapter.ID + ".bat" : GradleBuildToolAdapter.ID;
     }
 
     private static boolean isWindows() {
@@ -812,6 +844,7 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
                 .anyMatch(name ->
                         name.equals(BUNDLE_RUN_TASK)
                                 || name.equals(BUNDLE_BUILD_TASK)
+                                || name.equals(BUNDLE_TEST_TASK)
                                 || name.equals(EXPLAIN_TASK)
                 );
     }
@@ -1001,6 +1034,23 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
             List<String> jarTasks,
             List<Provider<String>> jarPaths,
             List<String> configurationClasses
+    ) {
+    }
+
+    private record GeneratedHostSetup(
+            ModuleComposerExtension extension,
+            FrameworkAdapter adapter,
+            CompositionPlan plan,
+            List<String> validationTasks,
+            GeneratedHostInputs inputs,
+            File hostDirectory
+    ) {
+    }
+
+    private record BundleTasks(
+            TaskProvider<Task> run,
+            TaskProvider<Task> build,
+            TaskProvider<Task> test
     ) {
     }
 

@@ -12,6 +12,9 @@ public final class ModuleComposerDefaults {
     public static final String DEFAULT_STANDALONE_BUILD_TASK = "bootJar";
     public static final String DEFAULT_PLAIN_JAR_TASK = "jar";
     public static final String MODULE_PROJECT_PREFIX = "module-";
+    public static final String DISTRIBUTIONS_KEY = "distributions";
+    public static final String APPLICATION_NAME_KEY = "applicationName";
+    public static final String MODULES_KEY = "modules";
     public static final String SPRING_BOOT_VERSION_KEY = "springBootVersion";
     public static final String DEPENDENCY_MANAGEMENT_VERSION_KEY =
             "dependencyManagementVersion";

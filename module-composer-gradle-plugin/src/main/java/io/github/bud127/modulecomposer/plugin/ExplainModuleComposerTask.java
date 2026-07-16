@@ -9,8 +9,6 @@ import org.gradle.api.tasks.TaskAction;
 
 public abstract class ExplainModuleComposerTask extends DefaultTask {
 
-    private static final String ITEM_LOG_FORMAT = "  + {}";
-
     @Input
     public abstract Property<String> getFramework();
 
@@ -97,12 +95,12 @@ public abstract class ExplainModuleComposerTask extends DefaultTask {
     private void logModules() {
         getLogger().lifecycle("Modules:");
         getModuleNames().get().forEach(
-                name -> getLogger().lifecycle(ITEM_LOG_FORMAT, name)
+                name -> getLogger().lifecycle(PluginLogFormats.ITEM, name)
         );
     }
 
     private void logExecution() {
-        if (getStandalone().get()) {
+        if (Boolean.TRUE.equals(getStandalone().get())) {
             getLogger().lifecycle("Run task:");
             getLogger().lifecycle("  {}", getStandaloneRunTask().get());
             getLogger().lifecycle("Build task:");

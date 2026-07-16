@@ -130,6 +130,7 @@ listDistributions
 explain
 bundleRun
 bundleBuild
+bundleTest
 ```
 
 Lihat module yang tersedia:
@@ -152,8 +153,9 @@ Lihat rencana eksekusi tanpa menjalankan build:
 ```
 
 Task internal/generated seperti `prepareGeneratedHost`, `runGeneratedHost`,
-`buildGeneratedHost`, dan `copyGeneratedHostJar` dibuat saat diperlukan untuk
-multi-module mode. Biasanya task ini tidak dipanggil langsung.
+`buildGeneratedHost`, `testGeneratedHost`, dan `copyGeneratedHostJar` dibuat
+saat diperlukan untuk multi-module mode. Biasanya task ini tidak dipanggil
+langsung.
 
 ## CLI Tanpa YAML
 
@@ -180,6 +182,17 @@ Build beberapa module sebagai bundle JAR:
 ```bash
 ./gradlew bundleBuild -Pmodules=payment,notification
 ```
+
+Test beberapa module sebagai generated host:
+
+```bash
+./gradlew bundleTest -Pmodules=payment,notification
+```
+
+Untuk satu module, `bundleTest` menjalankan task `test` module tersebut. Untuk
+multi-module, `bundleTest` membuat generated host lalu menjalankan `test` di
+generated host. Spring Boot generated host menyertakan smoke test
+`@SpringBootTest` untuk memastikan application context gabungan bisa start.
 
 Build dengan validasi test selected modules:
 

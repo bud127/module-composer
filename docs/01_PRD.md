@@ -162,16 +162,18 @@ docker compose must publish `container.hostPort:container.containerPort`.
 - `explain`
 - `bundleRun`
 - `bundleBuild`
+- `bundleTest`
 
 Generated-host mode may create internal tasks:
 
 - `prepareGeneratedHost`
 - `runGeneratedHost`
 - `buildGeneratedHost`
+- `testGeneratedHost`
 - `copyGeneratedHostJar`
 
-Those internal tasks are implementation details behind `bundleRun` and
-`bundleBuild`.
+Those internal tasks are implementation details behind `bundleRun`,
+`bundleBuild`, and `bundleTest`.
 
 ## Acceptance Criteria
 

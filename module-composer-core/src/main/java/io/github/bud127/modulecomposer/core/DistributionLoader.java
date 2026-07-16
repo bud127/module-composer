@@ -11,11 +11,13 @@ import java.util.Map;
 
 public final class DistributionLoader {
 
-    private static final String DISTRIBUTIONS_KEY = "distributions";
+    private static final String DISTRIBUTIONS_KEY =
+            ModuleComposerDefaults.DISTRIBUTIONS_KEY;
     private static final String VERSION_KEY = "version";
     private static final String NAME_KEY = "name";
-    private static final String APPLICATION_NAME_KEY = "applicationName";
-    private static final String MODULES_KEY = "modules";
+    private static final String APPLICATION_NAME_KEY =
+            ModuleComposerDefaults.APPLICATION_NAME_KEY;
+    private static final String MODULES_KEY = ModuleComposerDefaults.MODULES_KEY;
     private static final String ARTIFACT_KEY = "artifact";
     private static final String CONTAINER_KEY = "container";
     private static final String FILE_NAME_KEY = "fileName";
@@ -27,6 +29,11 @@ public final class DistributionLoader {
     private static final String YML_EXTENSION = ".yml";
     private static final String INVALID_YAML_ROOT_MESSAGE = "Invalid YAML root in ";
     private static final String UNABLE_TO_READ_MESSAGE = "Unable to read ";
+    private static final String DISTRIBUTION_ROOT_CONTEXT = "distribution root";
+    private static final String SINGLE_DISTRIBUTION_ROOT_CONTEXT =
+            "single distribution root";
+    private static final String DISTRIBUTION_MESSAGE_PREFIX = "Distribution '";
+    private static final String DISTRIBUTION_CONTEXT_PREFIX = "distribution '";
     private static final List<String> MULTI_ROOT_KEYS = List.of(VERSION_KEY, DISTRIBUTIONS_KEY);
     private static final List<String> SINGLE_ROOT_KEYS = List.of(
             NAME_KEY,
@@ -104,13 +111,13 @@ public final class DistributionLoader {
 
     private DistributionConfig parseDistributionRoot(Map<?, ?> root) {
         if (root.get(DISTRIBUTIONS_KEY) instanceof Map<?, ?> distributionMap) {
-            validateAllowedKeys(root, MULTI_ROOT_KEYS, "distribution root");
-            validateVersion(root, "distribution root");
+            validateAllowedKeys(root, MULTI_ROOT_KEYS, DISTRIBUTION_ROOT_CONTEXT);
+            validateVersion(root, DISTRIBUTION_ROOT_CONTEXT);
             return parseMultiDistributionFile(distributionMap);
         }
 
-        validateAllowedKeys(root, SINGLE_ROOT_KEYS, "single distribution root");
-        validateVersion(root, "single distribution root");
+        validateAllowedKeys(root, SINGLE_ROOT_KEYS, SINGLE_DISTRIBUTION_ROOT_CONTEXT);
+        validateVersion(root, SINGLE_DISTRIBUTION_ROOT_CONTEXT);
         NamedDistribution distribution = parseSingleDistributionFile(root);
         return new DistributionConfig(Map.of(distribution.name(), distribution.preset()));
     }
@@ -173,11 +180,11 @@ public final class DistributionLoader {
 
             if (!(entry.getValue() instanceof Map<?, ?> metadata)) {
                 throw new ModuleComposerException(
-                        "Distribution '" + name + "' must define metadata."
+                        distributionMessage(name, " must define metadata.")
                 );
             }
 
-            validateAllowedKeys(metadata, PRESET_KEYS, "distribution '" + name + "'");
+            validateAllowedKeys(metadata, PRESET_KEYS, distributionContext(name));
             distributions.put(name, parsePreset(name, metadata));
         }
 
@@ -215,7 +222,7 @@ public final class DistributionLoader {
     private DistributionPreset parsePreset(String name, Map<?, ?> metadata) {
         if (!(metadata.get(MODULES_KEY) instanceof List<?> list)) {
             throw new ModuleComposerException(
-                    "Distribution '" + name + "' must define a modules list."
+                    distributionMessage(name, " must define a modules list.")
             );
         }
         List<String> modules = parseModules(name, list);
@@ -239,14 +246,18 @@ public final class DistributionLoader {
             String module = optionalString(entry);
             if (module == null) {
                 throw new ModuleComposerException(
-                        "Distribution '" + distribution +
-                                "' modules must contain non-empty values."
+                        distributionMessage(
+                                distribution,
+                                " modules must contain non-empty values."
+                        )
                 );
             }
             if (modules.contains(module)) {
                 throw new ModuleComposerException(
-                        "Distribution '" + distribution +
-                                "' contains duplicate module '" + module + "'."
+                        distributionMessage(
+                                distribution,
+                                " contains duplicate module '" + module + "'."
+                        )
                 );
             }
             modules.add(module);
@@ -261,13 +272,16 @@ public final class DistributionLoader {
         }
         if (!(value instanceof Map<?, ?> metadata)) {
             throw new ModuleComposerException(
-                    "Distribution '" + distribution + "' artifact must define metadata."
+                    distributionMessage(
+                            distribution,
+                            " artifact must define metadata."
+                    )
             );
         }
         validateAllowedKeys(
                 metadata,
                 ARTIFACT_KEYS,
-                "distribution '" + distribution + "' artifact"
+                distributionContext(distribution) + " artifact"
         );
 
         String fileName = optionalString(metadata.get(FILE_NAME_KEY));
@@ -280,13 +294,16 @@ public final class DistributionLoader {
         }
         if (!(value instanceof Map<?, ?> metadata)) {
             throw new ModuleComposerException(
-                    "Distribution '" + distribution + "' container must define metadata."
+                    distributionMessage(
+                            distribution,
+                            " container must define metadata."
+                    )
             );
         }
         validateAllowedKeys(
                 metadata,
                 CONTAINER_KEYS,
-                "distribution '" + distribution + "' container"
+                distributionContext(distribution) + " container"
         );
 
         String image = optionalString(metadata.get(IMAGE_KEY));
@@ -347,6 +364,14 @@ public final class DistributionLoader {
 
         String text = String.valueOf(value).trim();
         return text.isBlank() ? null : text;
+    }
+
+    private static String distributionMessage(String distribution, String suffix) {
+        return DISTRIBUTION_MESSAGE_PREFIX + distribution + "'" + suffix;
+    }
+
+    private static String distributionContext(String distribution) {
+        return DISTRIBUTION_CONTEXT_PREFIX + distribution + "'";
     }
 
     private static void validateAllowedKeys(

@@ -4,12 +4,9 @@ import java.util.List;
 
 public record ModuleSelection(
         List<ModuleRegistration> modules,
-        String distribution,
-        String applicationName,
-        DistributionArtifact artifact,
-        DistributionContainer container,
         RuntimeOptions runtimeOptions,
-        SelectionMode mode
+        SelectionMode mode,
+        DistributionDetails distributionDetails
 ) {
     public boolean isStandalone() {
         return modules.size() == 1;
@@ -17,5 +14,21 @@ public record ModuleSelection(
 
     public List<String> moduleNames() {
         return modules.stream().map(ModuleRegistration::name).toList();
+    }
+
+    public String distribution() {
+        return distributionDetails.distribution();
+    }
+
+    public String applicationName() {
+        return distributionDetails.applicationName();
+    }
+
+    public DistributionArtifact artifact() {
+        return distributionDetails.artifact();
+    }
+
+    public DistributionContainer container() {
+        return distributionDetails.container();
     }
 }

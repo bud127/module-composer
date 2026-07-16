@@ -13,6 +13,8 @@ import org.gradle.api.tasks.bundling.AbstractArchiveTask;
  */
 public final class GradleBuildToolAdapter implements BuildToolAdapter {
 
+    static final String ID = "gradle";
+
     private final Project root;
 
     /**
@@ -26,7 +28,7 @@ public final class GradleBuildToolAdapter implements BuildToolAdapter {
 
     @Override
     public String buildToolId() {
-        return "gradle";
+        return ID;
     }
 
     @Override

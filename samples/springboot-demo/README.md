@@ -20,6 +20,7 @@ springboot-demo/
 ./gradlew listModules
 ./gradlew explain -Pmodules=payment
 ./gradlew bundleRun -Pmodules=payment
+./gradlew bundleTest -Pmodules=payment
 ```
 
 Payment runs on port `8081`.
@@ -37,6 +38,7 @@ This also runs `module-payment` directly.
 ```bash
 ./gradlew explain -Pmodules=payment,notification
 ./gradlew bundleRun -Pmodules=payment,notification
+./gradlew bundleTest -Pmodules=payment,notification
 ```
 
 Generated host runs on port `8080`.
@@ -47,6 +49,7 @@ Generated host runs on port `8080`.
 ./gradlew listDistributions
 ./gradlew explain -Pdistribution=enterprise
 ./gradlew bundleBuild -Pdistribution=enterprise
+./gradlew bundleTest -Pdistribution=enterprise
 ```
 
 Output:

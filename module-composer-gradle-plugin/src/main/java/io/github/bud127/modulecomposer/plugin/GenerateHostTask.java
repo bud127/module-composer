@@ -155,13 +155,17 @@ public abstract class GenerateHostTask extends DefaultTask {
                 compositionPlan(),
                 new GeneratedHostContext(
                         host,
-                        getDependencyJarPaths().get(),
-                        getConfigurationClasses().get(),
-                        getModuleNames().get(),
-                        getDistribution().getOrElse(""),
-                        getApplicationName().get(),
-                        getJavaVersion().get(),
-                        getFrameworkOptions().get()
+                        new GeneratedHostClasspath(
+                                getDependencyJarPaths().get(),
+                                getConfigurationClasses().get()
+                        ),
+                        new GeneratedHostMetadata(
+                                getModuleNames().get(),
+                                getDistribution().getOrElse(""),
+                                getApplicationName().get(),
+                                getJavaVersion().get(),
+                                getFrameworkOptions().get()
+                        )
                 )
         );
 
@@ -189,10 +193,12 @@ public abstract class GenerateHostTask extends DefaultTask {
                 SelectionMode.valueOf(getSelectionMode().get()),
                 moduleRegistrations(),
                 runtimeOptions(),
-                blankToNull(getDistribution().getOrElse("")),
-                getApplicationName().get(),
-                distributionArtifact(),
-                distributionContainer()
+                new DistributionDetails(
+                        blankToNull(getDistribution().getOrElse("")),
+                        getApplicationName().get(),
+                        distributionArtifact(),
+                        distributionContainer()
+                )
         );
     }
 
@@ -221,7 +227,7 @@ public abstract class GenerateHostTask extends DefaultTask {
         return new RuntimeOptions(
                 getRuntimePort().getOrNull(),
                 getRuntimeProfile().getOrElse(""),
-                getRuntimeDebug().get(),
+                Boolean.TRUE.equals(getRuntimeDebug().get()),
                 List.of(),
                 Map.of()
         );

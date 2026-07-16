@@ -4,11 +4,15 @@ import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +31,7 @@ class ModuleComposerFunctionalTest {
 
         assertTrue(result.getOutput().contains("bundleRun"));
         assertTrue(result.getOutput().contains("bundleBuild"));
+        assertTrue(result.getOutput().contains("bundleTest"));
     }
 
     @Test
@@ -83,35 +88,43 @@ class ModuleComposerFunctionalTest {
         assertTrue(result.getOutput().contains(":copyGeneratedHostJar SKIPPED"));
     }
 
-    @Test
-    void validationTestRunsSelectedModuleTestTasks() throws IOException {
-        writeProject(List.of("payment", "notification"), false);
+    @ParameterizedTest(name = "{1} validation")
+    @MethodSource("validationModes")
+    void validationRunsSelectedModuleTasks(
+            List<String> projectModules,
+            String validation,
+            String selectedModules,
+            List<String> expectedOutputs
+    ) throws IOException {
+        writeProject(projectModules, false);
 
         BuildResult result = run(
                 "bundleBuild",
-                "-Pmodules=payment,notification",
-                "-Pvalidation=test",
+                "-Pmodules=" + selectedModules,
+                "-Pvalidation=" + validation,
                 "--dry-run"
         );
 
-        assertTrue(result.getOutput().contains(":module-payment:test SKIPPED"));
-        assertTrue(result.getOutput().contains(":module-notification:test SKIPPED"));
-        assertTrue(result.getOutput().contains(":prepareGeneratedHost SKIPPED"));
+        assertOutputContains(result, expectedOutputs);
     }
 
-    @Test
-    void validationCheckRunsSelectedModuleCheckTasks() throws IOException {
-        writeProject(List.of("payment"), false);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("bundleTestSelections")
+    void bundleTestWiresExpectedTasks(
+            String scenario,
+            List<String> projectModules,
+            String selectedModules,
+            List<String> expectedOutputs
+    ) throws IOException {
+        writeProject(projectModules, false);
 
         BuildResult result = run(
-                "bundleBuild",
-                "-Pmodules=payment",
-                "-Pvalidation=check",
+                "bundleTest",
+                "-Pmodules=" + selectedModules,
                 "--dry-run"
         );
 
-        assertTrue(result.getOutput().contains(":module-payment:check SKIPPED"));
-        assertTrue(result.getOutput().contains(":module-payment:bootJar SKIPPED"));
+        assertOutputContains(result, expectedOutputs);
     }
 
     @Test
@@ -444,6 +457,59 @@ class ModuleComposerFunctionalTest {
 
     private BuildResult fail(String... arguments) {
         return runner(arguments).buildAndFail();
+    }
+
+    private static Stream<Arguments> validationModes() {
+        return Stream.of(
+                Arguments.of(
+                        List.of("payment", "notification"),
+                        "test",
+                        "payment,notification",
+                        List.of(
+                                ":module-payment:test SKIPPED",
+                                ":module-notification:test SKIPPED",
+                                ":prepareGeneratedHost SKIPPED"
+                        )
+                ),
+                Arguments.of(
+                        List.of("payment"),
+                        "check",
+                        "payment",
+                        List.of(
+                                ":module-payment:check SKIPPED",
+                                ":module-payment:bootJar SKIPPED"
+                        )
+                )
+        );
+    }
+
+    private static Stream<Arguments> bundleTestSelections() {
+        return Stream.of(
+                Arguments.of(
+                        "standalone module",
+                        List.of("payment"),
+                        "payment",
+                        List.of(":module-payment:test SKIPPED")
+                ),
+                Arguments.of(
+                        "generated host",
+                        List.of("payment", "notification"),
+                        "payment,notification",
+                        List.of(
+                                ":prepareGeneratedHost SKIPPED",
+                                ":testGeneratedHost SKIPPED"
+                        )
+                )
+        );
+    }
+
+    private static void assertOutputContains(
+            BuildResult result,
+            List<String> expectedOutputs
+    ) {
+        expectedOutputs.forEach(
+                expected -> assertTrue(result.getOutput().contains(expected))
+        );
     }
 
     private GradleRunner runner(String... arguments) {

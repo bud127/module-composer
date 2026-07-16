@@ -14,10 +14,7 @@ public final class CompositionPlanner {
                 selection.mode(),
                 selection.modules(),
                 selection.runtimeOptions(),
-                selection.distribution(),
-                selection.applicationName(),
-                selection.artifact(),
-                selection.container()
+                selection.distributionDetails()
         );
     }
 }

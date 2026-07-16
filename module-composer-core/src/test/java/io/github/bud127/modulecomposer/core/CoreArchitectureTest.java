@@ -2,11 +2,15 @@ package io.github.bud127.modulecomposer.core;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -203,17 +207,15 @@ class CoreArchitectureTest {
         assertEquals(8080, selection.container().containerPort());
     }
 
-    @Test
-    void distributionRejectsUnknownRootField() throws IOException {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidDistributionSchemas")
+    void distributionRejectsInvalidSchema(
+            String scenario,
+            String yamlContent,
+            List<String> expectedMessages
+    ) throws IOException {
         Path yaml = directory.resolve("distributions.yml");
-        Files.writeString(yaml, """
-                version: 1
-                unknown: true
-                distributions:
-                  community:
-                    modules:
-                      - payment
-                """);
+        Files.writeString(yaml, yamlContent);
         DistributionLoader loader = new DistributionLoader(yaml);
 
         ModuleComposerException exception = assertThrows(
@@ -221,121 +223,9 @@ class CoreArchitectureTest {
                 loader::loadRequired
         );
 
-        assertTrue(exception.getMessage().contains("Unknown field 'unknown'"));
-        assertTrue(exception.getMessage().contains("distribution root"));
-    }
-
-    @Test
-    void distributionRejectsUnknownPresetField() throws IOException {
-        Path yaml = directory.resolve("distributions.yml");
-        Files.writeString(yaml, """
-                version: 1
-                distributions:
-                  community:
-                    modules:
-                      - payment
-                    extra: true
-                """);
-        DistributionLoader loader = new DistributionLoader(yaml);
-
-        ModuleComposerException exception = assertThrows(
-                ModuleComposerException.class,
-                loader::loadRequired
+        expectedMessages.forEach(
+                expected -> assertTrue(exception.getMessage().contains(expected))
         );
-
-        assertTrue(exception.getMessage().contains("Unknown field 'extra'"));
-        assertTrue(exception.getMessage().contains("distribution 'community'"));
-    }
-
-    @Test
-    void distributionRejectsInvalidVersionShape() throws IOException {
-        Path yaml = directory.resolve("distributions.yml");
-        Files.writeString(yaml, """
-                version:
-                  major: 1
-                distributions:
-                  community:
-                    modules:
-                      - payment
-                """);
-        DistributionLoader loader = new DistributionLoader(yaml);
-
-        ModuleComposerException exception = assertThrows(
-                ModuleComposerException.class,
-                loader::loadRequired
-        );
-
-        assertTrue(exception.getMessage().contains("Field 'version'"));
-        assertTrue(exception.getMessage().contains("non-empty string or number"));
-    }
-
-    @Test
-    void distributionRejectsDuplicateModules() throws IOException {
-        Path yaml = directory.resolve("distributions.yml");
-        Files.writeString(yaml, """
-                version: 1
-                distributions:
-                  community:
-                    modules:
-                      - payment
-                      - payment
-                """);
-        DistributionLoader loader = new DistributionLoader(yaml);
-
-        ModuleComposerException exception = assertThrows(
-                ModuleComposerException.class,
-                loader::loadRequired
-        );
-
-        assertTrue(exception.getMessage().contains("duplicate module 'payment'"));
-    }
-
-    @Test
-    void distributionRejectsUnknownArtifactField() throws IOException {
-        Path yaml = directory.resolve("distributions.yml");
-        Files.writeString(yaml, """
-                version: 1
-                distributions:
-                  community:
-                    modules:
-                      - payment
-                    artifact:
-                      fileName: application.jar
-                      classifier: boot
-                """);
-        DistributionLoader loader = new DistributionLoader(yaml);
-
-        ModuleComposerException exception = assertThrows(
-                ModuleComposerException.class,
-                loader::loadRequired
-        );
-
-        assertTrue(exception.getMessage().contains("Unknown field 'classifier'"));
-        assertTrue(exception.getMessage().contains("artifact"));
-    }
-
-    @Test
-    void distributionRejectsUnknownContainerField() throws IOException {
-        Path yaml = directory.resolve("distributions.yml");
-        Files.writeString(yaml, """
-                version: 1
-                distributions:
-                  community:
-                    modules:
-                      - payment
-                    container:
-                      image: bud127/community
-                      port: 8080
-                """);
-        DistributionLoader loader = new DistributionLoader(yaml);
-
-        ModuleComposerException exception = assertThrows(
-                ModuleComposerException.class,
-                loader::loadRequired
-        );
-
-        assertTrue(exception.getMessage().contains("Unknown field 'port'"));
-        assertTrue(exception.getMessage().contains("container"));
     }
 
     @Test
@@ -345,12 +235,14 @@ class CoreArchitectureTest {
                         module("payment", ":module-payment"),
                         module("notification", ":module-notification")
                 ),
-                null,
-                "combined-app",
-                null,
-                null,
                 RuntimeOptions.none(),
-                SelectionMode.CLI
+                SelectionMode.CLI,
+                new DistributionDetails(
+                        null,
+                        "combined-app",
+                        null,
+                        null
+                )
         );
 
         CompositionPlan plan =
@@ -393,6 +285,87 @@ class CoreArchitectureTest {
         assertEquals(
                 List.of("prepare", "run-generated"),
                 adapter.generatedRun(framework).steps()
+        );
+    }
+
+    private static Stream<Arguments> invalidDistributionSchemas() {
+        return Stream.of(
+                Arguments.of(
+                        "unknown root field",
+                        """
+                        version: 1
+                        unknown: true
+                        distributions:
+                          community:
+                            modules:
+                              - payment
+                        """,
+                        List.of("Unknown field 'unknown'", "distribution root")
+                ),
+                Arguments.of(
+                        "unknown preset field",
+                        """
+                        version: 1
+                        distributions:
+                          community:
+                            modules:
+                              - payment
+                            extra: true
+                        """,
+                        List.of("Unknown field 'extra'", "distribution 'community'")
+                ),
+                Arguments.of(
+                        "invalid version shape",
+                        """
+                        version:
+                          major: 1
+                        distributions:
+                          community:
+                            modules:
+                              - payment
+                        """,
+                        List.of("Field 'version'", "non-empty string or number")
+                ),
+                Arguments.of(
+                        "duplicate modules",
+                        """
+                        version: 1
+                        distributions:
+                          community:
+                            modules:
+                              - payment
+                              - payment
+                        """,
+                        List.of("duplicate module 'payment'")
+                ),
+                Arguments.of(
+                        "unknown artifact field",
+                        """
+                        version: 1
+                        distributions:
+                          community:
+                            modules:
+                              - payment
+                            artifact:
+                              fileName: application.jar
+                              classifier: boot
+                        """,
+                        List.of("Unknown field 'classifier'", "artifact")
+                ),
+                Arguments.of(
+                        "unknown container field",
+                        """
+                        version: 1
+                        distributions:
+                          community:
+                            modules:
+                              - payment
+                            container:
+                              image: bud127/community
+                              port: 8080
+                        """,
+                        List.of("Unknown field 'port'", "container")
+                )
         );
     }
 

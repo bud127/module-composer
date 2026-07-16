@@ -121,6 +121,7 @@ listDistributions
 explain
 bundleRun
 bundleBuild
+bundleTest
 ```
 
 Without YAML:
@@ -131,6 +132,7 @@ Without YAML:
 ./gradlew bundleRun -Pmodules=payment -Pport=9090
 ./gradlew bundleRun -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification
+./gradlew bundleTest -Pmodules=payment,notification
 ./gradlew bundleBuild -Pmodules=payment,notification -PapplicationName=custom-service
 ```
 
@@ -141,6 +143,7 @@ With YAML presets:
 ./gradlew explain -Pdistribution=enterprise
 ./gradlew bundleRun -Pdistribution=community
 ./gradlew bundleBuild -Pdistribution=enterprise -PexcludeModules=audit
+./gradlew bundleTest -Pdistribution=enterprise
 ```
 
 Docker:

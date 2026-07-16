@@ -6,12 +6,34 @@ import java.util.Map;
 
 public record GeneratedHostContext(
         Path hostDirectory,
-        List<String> dependencyJarPaths,
-        List<String> configurationClasses,
-        List<String> moduleNames,
-        String distribution,
-        String applicationName,
-        int javaVersion,
-        Map<String, String> frameworkOptions
+        GeneratedHostClasspath classpath,
+        GeneratedHostMetadata metadata
 ) {
+    public List<String> dependencyJarPaths() {
+        return classpath.dependencyJarPaths();
+    }
+
+    public List<String> configurationClasses() {
+        return classpath.configurationClasses();
+    }
+
+    public List<String> moduleNames() {
+        return metadata.moduleNames();
+    }
+
+    public String distribution() {
+        return metadata.distribution();
+    }
+
+    public String applicationName() {
+        return metadata.applicationName();
+    }
+
+    public int javaVersion() {
+        return metadata.javaVersion();
+    }
+
+    public Map<String, String> frameworkOptions() {
+        return metadata.frameworkOptions();
+    }
 }

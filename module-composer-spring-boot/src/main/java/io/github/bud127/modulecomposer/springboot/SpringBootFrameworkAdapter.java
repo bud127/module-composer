@@ -88,6 +88,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
 
         private final String springBootVersion;
         private final String dependencyManagementVersion;
+        private static final String JAVA_INDENT = "        ";
 
         SpringBootGeneratedHostFactory(
                 String springBootVersion,
@@ -106,17 +107,22 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
             Path javaDirectory = host.resolve(
                     "src/main/java/com/bysa/generated"
             );
+            Path testDirectory = host.resolve(
+                    "src/test/java/com/bysa/generated"
+            );
 
             Path resourcesDirectory = host.resolve(
                     "src/main/resources"
             );
 
             Files.createDirectories(javaDirectory);
+            Files.createDirectories(testDirectory);
             Files.createDirectories(resourcesDirectory);
 
             writeSettings(host);
             writeBuild(host, context);
             writeApplication(javaDirectory, context);
+            writeApplicationTest(testDirectory);
             writeResources(resourcesDirectory);
         }
 
@@ -175,6 +181,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                     dependencies {
                         implementation("org.springframework.boot:spring-boot-starter-web")
                         implementation("org.springframework.boot:spring-boot-starter-actuator")
+                        testImplementation("org.springframework.boot:spring-boot-starter-test")
                     %s
                     }
 
@@ -194,6 +201,10 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
 
                     tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("%s") {
                         archiveFileName.set("%s.jar")
+                    }
+
+                    tasks.named<Test>("test") {
+                        useJUnitPlatform()
                     }
                     """.formatted(
                             springBootVersion,
@@ -222,7 +233,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                     );
 
             String importedClasses = configurations.stream()
-                    .map(value -> "        " + simpleName(value) + ".class")
+                    .map(value -> JAVA_INDENT + simpleName(value) + ".class")
                     .reduce("", (left, right) ->
                             left.isEmpty()
                                     ? right
@@ -278,6 +289,29 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
             );
         }
 
+        private void writeApplicationTest(Path testDirectory) throws IOException {
+            Files.writeString(
+                    testDirectory.resolve("GeneratedCombinedApplicationTest.java"),
+                    """
+                    package com.bysa.generated;
+
+                    import static org.assertj.core.api.Assertions.assertThat;
+
+                    import org.junit.jupiter.api.Test;
+                    import org.springframework.boot.test.context.SpringBootTest;
+
+                    @SpringBootTest
+                    class GeneratedCombinedApplicationTest {
+
+                        @Test
+                        void contextLoads() {
+                            assertThat(GeneratedCombinedApplication.class).isNotNull();
+                        }
+                    }
+                    """
+            );
+        }
+
         private static String defaultProperties(
                 String applicationName,
                 String modules,
@@ -291,7 +325,7 @@ public final class SpringBootFrameworkAdapter implements FrameworkAdapter {
                     )
                     .stream()
                     .reduce("", (left, right) ->
-                            left + "        " + right + System.lineSeparator()
+                            left + JAVA_INDENT + right + System.lineSeparator()
                     );
         }
 

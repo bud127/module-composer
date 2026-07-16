@@ -7,6 +7,9 @@ import java.util.Set;
 
 public final class ModuleSelector {
 
+    private static final String DISTRIBUTION_REFERENCE_PREFIX =
+            "' from distribution '";
+
     private final ModuleRegistry registry;
     private final DistributionLoader distributionLoader;
     private final ProjectValidator projectValidator;
@@ -50,14 +53,16 @@ public final class ModuleSelector {
 
         return new ModuleSelection(
                 List.copyOf(modules),
-                distribution,
-                resolved.applicationName() == null
-                        ? ModuleComposerDefaults.DEFAULT_APPLICATION_NAME
-                        : resolved.applicationName(),
-                resolved.artifact(),
-                resolved.container(),
                 request.runtimeOptions(),
-                resolved.mode()
+                resolved.mode(),
+                new DistributionDetails(
+                        distribution,
+                        resolved.applicationName() == null
+                                ? ModuleComposerDefaults.DEFAULT_APPLICATION_NAME
+                                : resolved.applicationName(),
+                        resolved.artifact(),
+                        resolved.container()
+                )
         );
     }
 
@@ -122,7 +127,7 @@ public final class ModuleSelector {
         String applicationName = requestedApplicationName == null
                 ? normalizeApplicationName(
                         preset.applicationName(),
-                        "distribution '" + distribution + "' applicationName"
+                        distributionContext(distribution, " applicationName")
                 )
                 : requestedApplicationName;
 
@@ -274,7 +279,7 @@ public final class ModuleSelector {
         if (fileName.contains("/") || fileName.contains("\\")) {
             throw new ModuleComposerException(
                     "Invalid artifact fileName '" + artifact.fileName() +
-                            "' from distribution '" + distribution +
+                            distributionReference(distribution) +
                             "'. Use a file name only, not a path."
             );
         }
@@ -335,12 +340,20 @@ public final class ModuleSelector {
         if (port != null && (port < 1 || port > 65535)) {
             throw new ModuleComposerException(
                     "Invalid " + field + " '" + port +
-                            "' from distribution '" + distribution +
+                            distributionReference(distribution) +
                             "'. Port must be between 1 and 65535."
             );
         }
 
         return port;
+    }
+
+    private static String distributionReference(String distribution) {
+        return DISTRIBUTION_REFERENCE_PREFIX + distribution;
+    }
+
+    private static String distributionContext(String distribution, String suffix) {
+        return "distribution " + '\'' + distribution + '\'' + suffix;
     }
 
     public interface ProjectValidator {

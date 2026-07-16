@@ -8,10 +8,7 @@ public record CompositionPlan(
         SelectionMode selectionMode,
         List<ModuleRegistration> modules,
         RuntimeOptions runtimeOptions,
-        String distribution,
-        String applicationName,
-        DistributionArtifact artifact,
-        DistributionContainer container
+        DistributionDetails distributionDetails
 ) {
     public boolean isStandalone() {
         return executionMode == ExecutionMode.STANDALONE;
@@ -19,5 +16,21 @@ public record CompositionPlan(
 
     public List<String> moduleNames() {
         return modules.stream().map(ModuleRegistration::name).toList();
+    }
+
+    public String distribution() {
+        return distributionDetails.distribution();
+    }
+
+    public String applicationName() {
+        return distributionDetails.applicationName();
+    }
+
+    public DistributionArtifact artifact() {
+        return distributionDetails.artifact();
+    }
+
+    public DistributionContainer container() {
+        return distributionDetails.container();
     }
 }

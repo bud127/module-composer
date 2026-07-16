@@ -21,6 +21,8 @@ import java.nio.file.StandardCopyOption;
 public abstract class CopyGeneratedHostJarTask extends DefaultTask {
 
     private static final String DEFAULT_BASE_IMAGE = "eclipse-temurin:21-jre";
+    private static final String DOCKERFILE_NAME = "Dockerfile";
+    private static final String DOCKER_COMPOSE_FILE_NAME = "docker-compose.yml";
     private static final int DEFAULT_PORT = 8080;
 
     @InputFile
@@ -73,7 +75,7 @@ public abstract class CopyGeneratedHostJarTask extends DefaultTask {
 
     private void writeContainerFiles(Path target) throws IOException {
         Path directory = getContainerDirectory().get().getAsFile().toPath();
-        if (!getContainerEnabled().get()) {
+        if (!Boolean.TRUE.equals(getContainerEnabled().get())) {
             deleteContainerFiles(directory);
             return;
         }
@@ -85,7 +87,7 @@ public abstract class CopyGeneratedHostJarTask extends DefaultTask {
         String jarReference = target.getFileName().toString();
 
         Files.writeString(
-                directory.resolve("Dockerfile"),
+                directory.resolve(DOCKERFILE_NAME),
                 """
                 FROM %s
 
@@ -101,7 +103,7 @@ public abstract class CopyGeneratedHostJarTask extends DefaultTask {
         );
 
         Files.writeString(
-                directory.resolve("docker-compose.yml"),
+                directory.resolve(DOCKER_COMPOSE_FILE_NAME),
                 """
                 services:
                   %s:
@@ -126,8 +128,8 @@ public abstract class CopyGeneratedHostJarTask extends DefaultTask {
     }
 
     private static void deleteContainerFiles(Path directory) throws IOException {
-        Files.deleteIfExists(directory.resolve("Dockerfile"));
-        Files.deleteIfExists(directory.resolve("docker-compose.yml"));
+        Files.deleteIfExists(directory.resolve(DOCKERFILE_NAME));
+        Files.deleteIfExists(directory.resolve(DOCKER_COMPOSE_FILE_NAME));
         Files.deleteIfExists(directory);
     }
 
