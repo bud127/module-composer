@@ -11,7 +11,7 @@ Current Maven group and plugin version:
 
 ```text
 group   = io.github.bud127
-version = 0.1.1
+version = 0.2.0
 ```
 
 Plugin IDs:
@@ -46,7 +46,7 @@ pluginManagement {
 
 ```kotlin
 plugins {
-    id("io.github.bud127.module-composer") version "0.1.1"
+    id("io.github.bud127.module-composer") version "0.2.0"
 }
 ```
 

@@ -315,7 +315,7 @@ class ModuleComposerFunctionalTest {
         writeProject(List.of("document", "email", "upload"), false);
         write("distributions/document-platform.yaml", """
                 name: document-platform
-                version: 0.1.0
+                version: 0.2.0
 
                 modules:
                   - document
@@ -351,7 +351,7 @@ class ModuleComposerFunctionalTest {
         writeExecutableGradleWrapper();
         write("distributions/document-platform.yaml", """
                 name: document-platform
-                version: 0.1.0
+                version: 0.2.0
 
                 modules:
                   - document
@@ -395,7 +395,7 @@ class ModuleComposerFunctionalTest {
         writeProject(List.of("document", "email"), false);
         write("distributions/document-platform.yaml", """
                 name: document-platform
-                version: 0.1.0
+                version: 0.2.0
 
                 modules:
                   - document
