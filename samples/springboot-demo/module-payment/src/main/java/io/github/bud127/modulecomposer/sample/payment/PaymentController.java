@@ -17,7 +17,7 @@ public class PaymentController {
         InetAddress localHost = InetAddress.getLocalHost();
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("status", "UP");
-        response.put("module", "audit");
+        response.put("module", "payment");
         response.put("hostname", localHost.getHostName());
         response.put("ipAddress", localHost.getHostAddress());
         response.put("pid", ManagementFactory.getRuntimeMXBean().getPid());
