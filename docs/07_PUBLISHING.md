@@ -21,6 +21,23 @@ io.github.bud127.module-composer
 io.github.bud127.module-composer-module
 ```
 
+## Compatibility
+
+The `0.2.0` plugin test suite includes a Gradle TestKit compatibility matrix
+for:
+
+```text
+Gradle 7.6.4
+Gradle 8.8
+Gradle 9.3.0
+```
+
+Gradle `6.9.4` is tested as unsupported. The current plugin artifacts use Java
+17 bytecode, and Gradle 6 cannot load that plugin classpath through TestKit.
+
+The plugin modules use Java 17 toolchains. Consumers should run Gradle with a
+Java version supported by their selected Gradle version.
+
 The legacy `com.bysa.*` plugin aliases are intentionally not published. Gradle
 Plugin Portal requires the plugin ID and Maven group to share the same top-level
 namespace.

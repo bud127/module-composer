@@ -27,7 +27,7 @@ gradlePlugin {
             tags.set(listOf("monorepo", "modular", "composition", "module-registry", "gradle-plugin"))
             compatibility {
                 features {
-                    configurationCache = false
+                    configurationCache.set(false)
                 }
             }
         }

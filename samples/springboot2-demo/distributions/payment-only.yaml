@@ -1,0 +1,5 @@
+name: payment-only
+version: 0.2.0
+
+modules:
+  - payment

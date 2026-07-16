@@ -78,6 +78,21 @@ instead of changing core selection or planning code.
 Maven support is not implemented yet. The intended path is a Maven plugin plus
 Maven build-tool adapter that reuse `module-composer-core`.
 
+## Compatibility
+
+Module Composer `0.2.0` is tested with Java 17+ and the following Gradle
+versions through Gradle TestKit:
+
+```text
+Gradle 7.6.4
+Gradle 8.8
+Gradle 9.3.0
+```
+
+Gradle `6.9.4` is covered by the compatibility tests as unsupported. The
+current plugin artifacts use Java 17 bytecode, which Gradle 6 cannot load
+through TestKit plugin classpath injection.
+
 ## Plugins
 
 Root project:

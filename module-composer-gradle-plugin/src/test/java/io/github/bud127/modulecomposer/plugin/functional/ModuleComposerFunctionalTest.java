@@ -7,6 +7,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -125,6 +126,70 @@ class ModuleComposerFunctionalTest {
         );
 
         assertOutputContains(result, expectedOutputs);
+    }
+
+    @ParameterizedTest(name = "Gradle {0}")
+    @ValueSource(strings = {"7.6.4", "8.8", "9.3.0"})
+    void supportsGradleVersionMatrix(String gradleVersion) throws IOException {
+        writeProject(List.of("payment", "notification"), false);
+
+        BuildResult result = runWithGradleVersion(
+                gradleVersion,
+                "bundleBuild",
+                "-Pmodules=payment,notification",
+                "--dry-run"
+        );
+
+        assertOutputContains(
+                result,
+                List.of(
+                        ":prepareGeneratedHost SKIPPED",
+                        ":copyGeneratedHostJar SKIPPED"
+                )
+        );
+    }
+
+    @Test
+    void generatedHostSupportsSpringBoot27() throws IOException {
+        writeProject(List.of("payment", "notification"), false, """
+                    javaVersion.set(17)
+                    springBootVersion.set("2.7.18")
+                    dependencyManagementVersion.set("1.0.15.RELEASE")
+                """);
+        writeExecutableGradleWrapper();
+
+        run("bundleBuild", "-Pmodules=payment,notification");
+
+        Path hostDirectory = projectDir.resolve(
+                "build/module-composer/generated/combined-app"
+        );
+        BuildResult result = GradleRunner.create()
+                .withProjectDir(hostDirectory.toFile())
+                .withGradleVersion("7.6.4")
+                .withArguments(
+                        "test",
+                        "-Dorg.gradle.java.home=" + java17Home()
+                )
+                .forwardOutput()
+                .build();
+
+        assertEquals(SUCCESS, result.task(":test").getOutcome());
+    }
+
+    @ParameterizedTest(name = "Gradle {0}")
+    @ValueSource(strings = {"6.9.4"})
+    void rejectsUnsupportedGradleVersionMatrix(String gradleVersion)
+            throws IOException {
+        writeProject(List.of("payment", "notification"), false);
+
+        BuildResult result = failWithGradleVersion(
+                gradleVersion,
+                "bundleBuild",
+                "-Pmodules=payment,notification",
+                "--dry-run"
+        );
+
+        assertTrue(result.getOutput().contains("Gradle could not start your build"));
     }
 
     @Test
@@ -459,6 +524,20 @@ class ModuleComposerFunctionalTest {
         return runner(arguments).buildAndFail();
     }
 
+    private BuildResult runWithGradleVersion(
+            String gradleVersion,
+            String... arguments
+    ) {
+        return runner(gradleVersion, arguments).build();
+    }
+
+    private BuildResult failWithGradleVersion(
+            String gradleVersion,
+            String... arguments
+    ) {
+        return runner(gradleVersion, arguments).buildAndFail();
+    }
+
     private static Stream<Arguments> validationModes() {
         return Stream.of(
                 Arguments.of(
@@ -513,16 +592,56 @@ class ModuleComposerFunctionalTest {
     }
 
     private GradleRunner runner(String... arguments) {
-        return GradleRunner.create()
+        return runner(null, arguments);
+    }
+
+    private GradleRunner runner(
+            String gradleVersion,
+            String... arguments
+    ) {
+        List<String> runnerArguments = new java.util.ArrayList<>(List.of(arguments));
+        if (gradleVersion != null) {
+            runnerArguments.add("-Dorg.gradle.java.home=" + java17Home());
+        }
+        GradleRunner runner = GradleRunner.create()
                 .withProjectDir(projectDir.toFile())
-                .withArguments(arguments)
+                .withArguments(runnerArguments)
                 .withPluginClasspath()
                 .forwardOutput();
+        if (gradleVersion != null) {
+            runner.withGradleVersion(gradleVersion);
+        }
+        return runner;
+    }
+
+    private static String java17Home() {
+        String configured = System.getenv("MODULE_COMPOSER_TEST_JAVA17_HOME");
+        if (configured != null && !configured.isBlank()) {
+            return configured;
+        }
+
+        Path sdkmanJava17 = Path.of(
+                System.getProperty("user.home"),
+                ".sdkman/candidates/java/17.0.18-tem"
+        );
+        if (Files.isDirectory(sdkmanJava17)) {
+            return sdkmanJava17.toString();
+        }
+
+        return System.getProperty("java.home");
     }
 
     private void writeProject(
             List<String> modules,
             boolean withDistribution
+    ) throws IOException {
+        writeProject(modules, withDistribution, "javaVersion.set(21)");
+    }
+
+    private void writeProject(
+            List<String> modules,
+            boolean withDistribution,
+            String moduleComposerConfiguration
     ) throws IOException {
         StringBuilder includes = new StringBuilder();
         for (String module : modules) {
@@ -555,9 +674,9 @@ class ModuleComposerFunctionalTest {
                 }
 
                 moduleComposer {
-                    javaVersion.set(21)
+                %s
                 }
-                """);
+                """.formatted(moduleComposerConfiguration));
 
         for (String module : modules) {
             writeModule("module-" + module, module);
