@@ -164,6 +164,9 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         extension.getDependencyManagementVersion().convention(
                 ModuleComposerDefaults.DEPENDENCY_MANAGEMENT_VERSION
         );
+        extension.getQuarkusVersion().convention(
+                ModuleComposerDefaults.QUARKUS_VERSION
+        );
         extension.getJavaVersion().convention(ModuleComposerDefaults.JAVA_VERSION);
         extension.getCommonProjectPaths().convention(List.of());
         extension.getCommonConfigurationClasses().convention(List.of());
@@ -602,6 +605,10 @@ public final class ModuleComposerPlugin implements Plugin<Project> {
         task.getFrameworkOptions().put(
                 ModuleComposerDefaults.DEPENDENCY_MANAGEMENT_VERSION_KEY,
                 setup.extension().getDependencyManagementVersion()
+        );
+        task.getFrameworkOptions().put(
+                ModuleComposerDefaults.QUARKUS_VERSION_KEY,
+                setup.extension().getQuarkusVersion()
         );
     }
 

@@ -53,6 +53,13 @@ public abstract class ModuleComposerExtension {
     public abstract Property<String> getDependencyManagementVersion();
 
     /**
+     * Quarkus platform and Gradle plugin version used by generated Quarkus hosts.
+     *
+     * @return Quarkus version
+     */
+    public abstract Property<String> getQuarkusVersion();
+
+    /**
      * Java language version used by generated hosts.
      *
      * @return Java language version

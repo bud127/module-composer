@@ -1,0 +1,17 @@
+name: community
+version: 0.2.0
+
+applicationName: quarkus-community-service
+
+modules:
+  - payment
+  - notification
+
+artifact:
+  fileName: quarkus-community-service.jar
+
+container:
+  image: bud127/quarkus-community
+  baseImage: eclipse-temurin:21-jre
+  hostPort: 8080
+  containerPort: 8080

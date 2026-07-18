@@ -2,7 +2,7 @@
 
 Module Composer is a framework-agnostic and build-tool-adaptable composition
 engine for modular applications. The current executable integration is Gradle,
-and Spring Boot is implemented as the first framework adapter.
+with Spring Boot and Quarkus framework adapters.
 
 ## Core Behavior
 
@@ -36,6 +36,9 @@ module-composer-module-plugin
 
 module-composer-spring-boot
   Spring Boot FrameworkAdapter implementation and generated host factory
+
+module-composer-quarkus
+  Quarkus FrameworkAdapter implementation and generated host factory
 ```
 
 Docs:
@@ -61,7 +64,7 @@ Module Composer Core
         +-- BuildToolAdapter API
                 |
                 +-- SpringBootFrameworkAdapter
-                +-- Quarkus adapter (future)
+                +-- QuarkusFrameworkAdapter
                 +-- GradleBuildToolAdapter
                 +-- Maven adapter (future)
 ```
@@ -116,6 +119,17 @@ moduleComposerModule {
     )
 }
 ```
+
+Quarkus composition:
+
+```kotlin
+moduleComposer {
+    framework.set("quarkus")
+}
+```
+
+Generated Quarkus hosts use the configured `quarkusVersion` value, defaulting
+to the version catalog's Quarkus platform version.
 
 ## Try The Sample
 

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GRADLE_VERSION="${GRADLE_VERSION:-8.14.3}"
+CACHE_DIR="${HOME}/.gradle/module-composer-bootstrap"
+DIST_DIR="${CACHE_DIR}/gradle-${GRADLE_VERSION}"
+ZIP_FILE="${CACHE_DIR}/gradle-${GRADLE_VERSION}-bin.zip"
+DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+
+if [[ ! -x "${DIST_DIR}/bin/gradle" ]]; then
+  mkdir -p "${CACHE_DIR}"
+  echo "Downloading Gradle ${GRADLE_VERSION}..."
+  curl -fL "${DIST_URL}" -o "${ZIP_FILE}"
+  rm -rf "${DIST_DIR}"
+  unzip -q "${ZIP_FILE}" -d "${CACHE_DIR}"
+fi
+
+exec "${DIST_DIR}/bin/gradle" "$@"

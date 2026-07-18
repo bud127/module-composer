@@ -19,6 +19,7 @@ repositories {
 dependencies {
     implementation(project(":module-composer-core"))
     implementation(project(":module-composer-module-plugin"))
+    implementation(project(":module-composer-quarkus"))
     implementation(project(":module-composer-spring-boot"))
     testImplementation(gradleTestKit())
     testImplementation(libs.junit.jupiter)
@@ -34,7 +35,7 @@ gradlePlugin {
             implementationClass = "io.github.bud127.modulecomposer.plugin.ModuleComposerPlugin"
             displayName = "Module Composer"
             description = "Compose modules in a monorepo into runnable application bundles from CLI selections or reusable distributions."
-            tags.set(listOf("monorepo", "modular", "composition", "spring-boot", "gradle-plugin"))
+            tags.set(listOf("monorepo", "modular", "composition", "spring-boot", "quarkus", "gradle-plugin"))
             compatibility {
                 features {
                     configurationCache.set(false)

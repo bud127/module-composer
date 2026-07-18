@@ -2,6 +2,7 @@
 dependencyManagement = "1.1.7"
 gradlePluginPublish = "2.1.1"
 junitJupiter = "5.13.4"
+quarkus = "3.37.3"
 snakeYaml = "2.4"
 springBoot = "3.5.7"
 

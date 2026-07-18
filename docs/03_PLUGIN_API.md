@@ -39,6 +39,7 @@ outputJar              = build/module-composer/output/combined-app.jar
 distributionFile       = distributions.yml
 springBootVersion      = plugin managed default
 dependencyManagement   = plugin managed default
+quarkusVersion         = plugin managed default
 javaVersion            = 21
 ```
 
@@ -74,8 +75,17 @@ delegates to that module's standalone build task instead of copying to
 `moduleComposer.outputJar`.
 
 The root plugin discovers framework adapters through `ServiceLoader`. The
-current distribution includes `SpringBootFrameworkAdapter` on the root plugin
-runtime classpath through `module-composer-spring-boot`.
+current distribution includes `SpringBootFrameworkAdapter` and
+`QuarkusFrameworkAdapter` on the root plugin runtime classpath through
+`module-composer-spring-boot` and `module-composer-quarkus`.
+
+Use Quarkus by setting:
+
+```kotlin
+moduleComposer {
+    framework.set("quarkus")
+}
+```
 
 ## Framework Adapter API
 

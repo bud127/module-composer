@@ -18,6 +18,7 @@ public final class ModuleComposerDefaults {
     public static final String SPRING_BOOT_VERSION_KEY = "springBootVersion";
     public static final String DEPENDENCY_MANAGEMENT_VERSION_KEY =
             "dependencyManagementVersion";
+    public static final String QUARKUS_VERSION_KEY = "quarkusVersion";
     public static final String RUNTIME_PORT_PROPERTY = "port";
 
     private static final Properties PROPERTIES = loadProperties();
@@ -26,6 +27,8 @@ public final class ModuleComposerDefaults {
             required(SPRING_BOOT_VERSION_KEY);
     public static final String DEPENDENCY_MANAGEMENT_VERSION =
             required(DEPENDENCY_MANAGEMENT_VERSION_KEY);
+    public static final String QUARKUS_VERSION =
+            required(QUARKUS_VERSION_KEY);
     public static final int JAVA_VERSION = 21;
 
     private ModuleComposerDefaults() {
