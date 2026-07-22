@@ -49,6 +49,7 @@ docs/03_PLUGIN_API.md
 docs/08_USAGE.md
 docs/06_BUILD_TOOL_ADAPTER.md
 docs/07_PUBLISHING.md
+projects/job-orchestrator/README.md
 ```
 
 ## Framework Adapter Architecture
